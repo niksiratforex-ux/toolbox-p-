@@ -9,7 +9,7 @@
 
 ۱۰۹ ابزار کاربردی در یک اپلیکیشن وب
 
-🔗 [دانلود و استفاده](https://niksiratforex-ux.github.io/toolbox-plus/) • 📱 نصب به عنوان PWA
+🔗 [دانلود و استفاده](https://niksiratforex-ux.github.io/toolbox-p-/) • 📱 نصب به عنوان PWA
 
 ## ✨ ویژگی‌ها
 
@@ -46,7 +46,7 @@
 
 ### آنلاین
 
-https://niksiratforex-ux.github.io/toolbox-plus/
+[https://niksiratforex-ux.github.io/toolbox-plus/](https://niksiratforex-ux.github.io/toolbox-p-/)
 
 ### نصب PWA
 
