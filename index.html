@@ -5012,66 +5012,84 @@ registerTools([{
 // ═══ health ═══
 
 /* ─── health-water ─── */
+// ═══ health ═══
+// ═══════════════════════════════════════════
+// سلامت — Health Tools (بازنویسی کامل)
+// ═══════════════════════════════════════════
+
+/* ─── health-water ─── */
 function renderWater(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>وزن شما (کیلوگرم):</label>
-      <input type="number" id="w-weight" placeholder="مثلاً ۷۰" min="20" max="300">
+      <input type="number" id="w-weight" placeholder="مثلاً 70" min="20" max="300">
     </div>
-    <button class="btn" id="w-calc" style="margin:8px 0">محاسبه</button>
-    <div id="w-result"></div>
+    <div class="input-group">
+      <label>میزان فعالیت:</label>
+      <select id="w-activity">
+        <option value="1">کم (بدون ورزش)</option>
+        <option value="1.2" selected>متوسط (۱-۲ بار در هفته)</option>
+        <option value="1.4">زیاد (۳+ بار در هفته)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="w-calc" style="width:100%;margin-top:8px">محاسبه</button>
+    <div id="w-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
+    <div id="w-tracker" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#w-calc').addEventListener('click', () => {
     const weight = parseFloat(container.querySelector('#w-weight').value);
-    if (!weight || weight < 20) { showToast('وزن معتبر وارد کنید', 'warning'); return; }
+    const activity = parseFloat(container.querySelector('#w-activity').value);
+    if (!weight || weight < 20) { showToast('وزن معتبر وارد کنید'); return; }
 
-    const liters = (weight * 0.033).toFixed(1);
-    const glasses = Math.ceil(liters * 4); // each glass ~250ml
+    const baseLiters = weight * 0.033;
+    const liters = (baseLiters * activity).toFixed(1);
+    const glasses = Math.ceil(liters * 4);
     const ml = Math.round(liters * 1000);
 
-    const resultDiv = container.querySelector('#w-result');
-    resultDiv.innerHTML = `
-      <div class="result" style="text-align:center">
-        <div style="font-size:18px;margin-bottom:8px">مصرف روزانه آب: <strong>${liters.replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d])}</strong> لیتر (${ml.toLocaleString('fa-IR')} میلی‌لیتر)</div>
-        <div style="margin-bottom:6px">معادل <strong>${glasses.toLocaleString('fa-IR')}</strong> لیوان (۲۵۰ میلی‌لیتری)</div>
-        <div class="progress-bar" style="margin:12px 0;background:#1a1a2e;border-radius:8px;height:20px;overflow:hidden">
-          <div id="w-fill" style="width:0%;height:100%;background:linear-gradient(90deg,#00b4d8,#0077b6);transition:width 0.3s;border-radius:8px"></div>
-        </div>
-        <div id="w-counter" style="margin-bottom:8px;font-size:14px;color:#aaa">۰ از ${glasses.toLocaleString('fa-IR')} لیوان</div>
-        <div id="w-glasses" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center"></div>
+    const resultBox = container.querySelector('#w-result');
+    resultBox.innerHTML = `
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:2.4rem;font-weight:900;color:#00b4d8">${liters} لیتر</div>
+        <div style="font-size:.85rem;color:var(--text2);margin-top:4px">${ml.toLocaleString('fa-IR')} میلیلیتر در روز</div>
+        <div style="font-size:1.1rem;font-weight:700;margin-top:8px">${glasses.toLocaleString('fa-IR')} لیوان ۲۵۰ml</div>
       </div>
     `;
+    resultBox.style.display = 'block';
 
-    const glassesDiv = resultDiv.querySelector('#w-glasses');
-    const fill = resultDiv.querySelector('#w-fill');
-    const counter = resultDiv.querySelector('#w-counter');
+    // Water tracker
     let drunk = 0;
+    const tracker = container.querySelector('#w-tracker');
+    tracker.style.display = 'block';
 
-    for (let i = 0; i < glasses; i++) {
-      const g = document.createElement('div');
-      g.style.cssText = 'width:40px;height:40px;border:2px solid #00b4d8;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:all 0.2s';
-      g.textContent = '🫗';
-      g.title = `لیوان ${i + 1}`;
-      g.addEventListener('click', () => {
-        if (g.classList.contains('drunk')) {
-          g.classList.remove('drunk');
-          g.style.background = 'transparent';
-          g.textContent = '🫗';
-          drunk--;
-        } else {
-          g.classList.add('drunk');
-          g.style.background = 'rgba(0,180,216,0.3)';
-          g.textContent = '💧';
-          drunk++;
-        }
-        const pct = Math.round((drunk / glasses) * 100);
-        fill.style.width = pct + '%';
-        counter.textContent = `${drunk.toLocaleString('fa-IR')} از ${glasses.toLocaleString('fa-IR')} لیوان (${pct.toLocaleString('fa-IR')}٪)`;
-        if (drunk >= glasses) showToast('آفرین! هدف آب امروز تکمیل شد 🎉', 'success');
+    function renderTracker() {
+      const pct = Math.round((drunk / glasses) * 100);
+      let glassesHtml = '';
+      for (let i = 0; i < glasses; i++) {
+        const filled = i < drunk;
+        glassesHtml += `<div class="w-glass" data-idx="${i}" style="width:40px;height:40px;border:2px solid ${filled ? '#00b4d8' : 'var(--border)'};border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;background:${filled ? 'rgba(0,180,216,0.2)' : 'transparent'};transition:all 0.2s">${filled ? '💧' : '🫗'}</div>`;
+      }
+      tracker.innerHTML = `
+        <div style="font-weight:700;margin-bottom:8px">💧 ردیاب آب امروز</div>
+        <div style="background:var(--glass2);border-radius:8px;height:20px;overflow:hidden;margin-bottom:8px">
+          <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#00b4d8,#0077b6);border-radius:8px;transition:width 0.3s"></div>
+        </div>
+        <div style="text-align:center;font-size:.85rem;color:var(--text2);margin-bottom:12px">${drunk} از ${glasses} لیوان (${pct}٪)</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">${glassesHtml}</div>
+        <div style="text-align:center;margin-top:12px"><button class="btn btn-ghost" id="w-reset" style="font-size:.75rem">🔄 ریست</button></div>
+      `;
+      tracker.querySelectorAll('.w-glass').forEach(el => {
+        el.addEventListener('click', () => {
+          const idx = parseInt(el.dataset.idx);
+          if (idx < drunk) drunk = idx; else drunk = idx + 1;
+          renderTracker();
+          if (drunk >= glasses) showToast('🎉 آفرین! هدف آب امروز تکمیل شد');
+        });
       });
-      glassesDiv.appendChild(g);
+      const resetBtn = tracker.querySelector('#w-reset');
+      if (resetBtn) resetBtn.addEventListener('click', () => { drunk = 0; renderTracker(); });
     }
+    renderTracker();
   });
 }
 
@@ -5085,55 +5103,35 @@ const FOODS = [
   { name: 'گوشت گوسفند', cal: 250, protein: 25, carbs: 0, fat: 16 },
   { name: 'گوشت گاو', cal: 210, protein: 26, carbs: 0, fat: 11 },
   { name: 'ماهی سالمون', cal: 208, protein: 20, carbs: 0, fat: 13 },
-  { name: 'ماهی قزل‌آلا', cal: 150, protein: 22, carbs: 0, fat: 6 },
-  { name: 'تخم‌مرغ', cal: 155, protein: 13, carbs: 1.1, fat: 11 },
+  { name: 'تخممرغ', cal: 155, protein: 13, carbs: 1.1, fat: 11 },
   { name: 'شیر کامل', cal: 64, protein: 3.2, carbs: 4.8, fat: 3.5 },
   { name: 'ماست ساده', cal: 59, protein: 3.5, carbs: 4.7, fat: 3.2 },
   { name: 'پنیر سفید', cal: 264, protein: 18, carbs: 2, fat: 21 },
-  { name: 'کره', cal: 717, protein: 0.9, carbs: 0.1, fat: 81 },
-  { name: 'روغن زیتون', cal: 884, protein: 0, carbs: 0, fat: 100 },
   { name: 'عدس پخته', cal: 116, protein: 9, carbs: 20, fat: 0.4 },
   { name: 'نخود پخته', cal: 164, protein: 8.9, carbs: 27, fat: 2.6 },
-  { name: 'لوبیا قرمز', cal: 127, protein: 8.7, carbs: 22.8, fat: 0.5 },
-  { name: 'سیب‌زمینی', cal: 77, protein: 2, carbs: 17, fat: 0.1 },
+  { name: 'سیبزمینی', cal: 77, protein: 2, carbs: 17, fat: 0.1 },
   { name: 'سیب', cal: 52, protein: 0.3, carbs: 14, fat: 0.2 },
   { name: 'موز', cal: 89, protein: 1.1, carbs: 23, fat: 0.3 },
   { name: 'پرتقال', cal: 47, protein: 0.9, carbs: 12, fat: 0.1 },
-  { name: 'انگور', cal: 69, protein: 0.7, carbs: 18, fat: 0.2 },
-  { name: 'خربزه', cal: 34, protein: 0.8, carbs: 8, fat: 0.2 },
-  { name: 'هندوانه', cal: 30, protein: 0.6, carbs: 8, fat: 0.2 },
-  { name: 'کیوی', cal: 61, protein: 1.1, carbs: 15, fat: 0.5 },
-  { name: 'توت‌فرنگی', cal: 32, protein: 0.7, carbs: 7.7, fat: 0.3 },
-  { name: 'انار', cal: 83, protein: 1.7, carbs: 19, fat: 1.2 },
-  { name: 'خیار', cal: 15, protein: 0.7, carbs: 3.6, fat: 0.1 },
-  { name: 'گوجه‌فرنگی', cal: 18, protein: 0.9, carbs: 3.9, fat: 0.2 },
-  { name: 'کاهو', cal: 15, protein: 1.4, carbs: 2.9, fat: 0.2 },
-  { name: 'هویج', cal: 41, protein: 0.9, carbs: 10, fat: 0.2 },
-  { name: 'پیاز', cal: 40, protein: 1.1, carbs: 9.3, fat: 0.1 },
-  { name: 'سیر', cal: 149, protein: 6.4, carbs: 33, fat: 0.5 },
-  { name: 'فلفل دلمه', cal: 20, protein: 0.9, carbs: 4.6, fat: 0.2 },
-  { name: 'بادمجان', cal: 25, protein: 1, carbs: 6, fat: 0.2 },
-  { name: 'کدو', cal: 17, protein: 1.2, carbs: 3.1, fat: 0.2 },
-  { name: 'اسفناج', cal: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
   { name: 'بادام', cal: 579, protein: 21, carbs: 22, fat: 50 },
   { name: 'گردو', cal: 654, protein: 15, carbs: 14, fat: 65 },
   { name: 'پسته', cal: 560, protein: 20, carbs: 28, fat: 45 },
-  { name: 'فندق', cal: 628, protein: 15, carbs: 17, fat: 61 },
   { name: 'عسل', cal: 304, protein: 0.3, carbs: 82, fat: 0 },
-  { name: 'شکر', cal: 387, protein: 0, carbs: 100, fat: 0 },
   { name: 'ماکارونی پخته', cal: 131, protein: 5, carbs: 25, fat: 1.1 },
   { name: 'کوکو سبزی', cal: 180, protein: 8, carbs: 10, fat: 12 },
-  { name: 'قورمه‌سبزی', cal: 120, protein: 8, carbs: 10, fat: 6 },
-  { name: 'زرشک‌پلو با مرغ', cal: 175, protein: 12, carbs: 22, fat: 5 },
-  { name: 'آش رشته', cal: 95, protein: 4, carbs: 14, fat: 3 },
+  { name: 'قورمهسبزی', cal: 120, protein: 8, carbs: 10, fat: 6 },
   { name: 'کباب کوبیده', cal: 230, protein: 20, carbs: 2, fat: 16 },
-  { name: 'جوجه‌کباب', cal: 195, protein: 28, carbs: 2, fat: 8 },
+  { name: 'جوجهکباب', cal: 195, protein: 28, carbs: 2, fat: 8 },
   { name: 'پیتزا', cal: 266, protein: 11, carbs: 33, fat: 10 },
   { name: 'همبرگر', cal: 295, protein: 17, carbs: 24, fat: 14 },
-  { name: 'ساندویچ', cal: 250, protein: 12, carbs: 30, fat: 10 },
   { name: 'بستنی', cal: 207, protein: 3.5, carbs: 24, fat: 11 },
   { name: 'شکلات', cal: 546, protein: 5, carbs: 60, fat: 31 },
   { name: 'چیپس', cal: 536, protein: 7, carbs: 53, fat: 35 },
+  { name: 'خیار', cal: 15, protein: 0.7, carbs: 3.6, fat: 0.1 },
+  { name: 'گوجهفرنگی', cal: 18, protein: 0.9, carbs: 3.9, fat: 0.2 },
+  { name: 'کاهو', cal: 15, protein: 1.4, carbs: 2.9, fat: 0.2 },
+  { name: 'هویج', cal: 41, protein: 0.9, carbs: 10, fat: 0.2 },
+  { name: 'اسفناج', cal: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
 ];
 
 function renderCalories(container) {
@@ -5145,11 +5143,11 @@ function renderCalories(container) {
     <div id="cal-suggestions" style="max-height:200px;overflow-y:auto;margin-bottom:8px"></div>
     <div class="input-group">
       <label>مقدار (گرم):</label>
-      <input type="number" id="cal-amount" placeholder="۱۰۰" value="100" min="1">
+      <input type="number" id="cal-amount" placeholder="100" value="100" min="1">
     </div>
     <div id="cal-selected" style="margin:8px 0"></div>
-    <button class="btn" id="cal-calc" style="margin:8px 0">محاسبه کالری</button>
-    <div class="result" id="cal-result"></div>
+    <button class="btn btn-primary" id="cal-calc" style="width:100%;margin-top:8px">محاسبه کالری</button>
+    <div id="cal-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   let selectedFoods = [];
@@ -5159,18 +5157,29 @@ function renderCalories(container) {
   const resultDiv = container.querySelector('#cal-result');
 
   function renderSuggestions(query) {
-    const filtered = query
-      ? FOODS.filter(f => f.name.includes(query))
-      : FOODS.slice(0, 20);
-    sugDiv.innerHTML = filtered.map((f, i) =>
-      `<div data-idx="${FOODS.indexOf(f)}" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #222;transition:background 0.15s" onmouseover="this.style.background='#1a1a2e'" onmouseout="this.style.background='transparent'">${f.name} — ${f.cal.toLocaleString('fa-IR')} kcal/100g</div>`
-    ).join('');
+    const filtered = query ? FOODS.filter(f => f.name.includes(query)) : FOODS.slice(0, 10);
+    sugDiv.innerHTML = filtered.map((f, i) => {
+      const idx = FOODS.indexOf(f);
+      return `<div data-idx="${idx}" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.15s;font-size:.85rem">${f.name} — ${f.cal} kcal/100g</div>`;
+    }).join('') || '<div style="text-align:center;color:var(--text2);padding:8px">غذایی یافت نشد</div>';
+
+    sugDiv.querySelectorAll('[data-idx]').forEach(el => {
+      el.addEventListener('click', () => {
+        const food = FOODS[parseInt(el.dataset.idx)];
+        const amount = parseFloat(container.querySelector('#cal-amount').value) || 100;
+        selectedFoods.push({ ...food, amount });
+        renderSelected();
+        searchInput.value = '';
+        sugDiv.innerHTML = '';
+      });
+    });
   }
 
   function renderSelected() {
     selDiv.innerHTML = selectedFoods.map((sf, i) =>
-      `<span style="display:inline-block;background:#1a1a2e;padding:4px 10px;border-radius:16px;margin:3px;font-size:13px">${sf.name} (${sf.amount.toLocaleString('fa-IR')}g) <span data-ridx="${i}" style="cursor:pointer;color:#e74c3c;margin-right:4px">✕</span></span>`
+      `<span style="display:inline-block;background:var(--glass2);padding:4px 10px;border-radius:16px;margin:3px;font-size:13px;border:1px solid var(--border)">${sf.name} (${sf.amount}g) <span data-ridx="${i}" style="cursor:pointer;color:var(--danger);margin-right:4px">✕</span></span>`
     ).join('');
+
     selDiv.querySelectorAll('[data-ridx]').forEach(el => {
       el.addEventListener('click', () => {
         selectedFoods.splice(parseInt(el.dataset.ridx), 1);
@@ -5179,60 +5188,65 @@ function renderCalories(container) {
     });
   }
 
-  searchInput.addEventListener('input', () => renderSuggestions(searchInput.value.trim()));
+  searchInput.addEventListener('input', (e) => renderSuggestions(e.target.value));
   renderSuggestions('');
 
-  sugDiv.addEventListener('click', (e) => {
-    const el = e.target.closest('[data-idx]');
-    if (!el) return;
-    const food = FOODS[parseInt(el.dataset.idx)];
-    const amount = parseInt(container.querySelector('#cal-amount').value) || 100;
-    selectedFoods.push({ ...food, amount });
-    renderSelected();
-    searchInput.value = '';
-    renderSuggestions('');
-  });
-
   container.querySelector('#cal-calc').addEventListener('click', () => {
-    if (!selectedFoods.length) { showToast('حداقل یک غذا انتخاب کنید', 'warning'); return; }
-    let totalCal = 0, totalP = 0, totalC = 0, totalF = 0;
+    if (!selectedFoods.length) { showToast('حداقل یک غذا انتخاب کنید'); return; }
+
+    let totalCal = 0, totalProtein = 0, totalCarbs = 0, totalFat = 0;
     selectedFoods.forEach(sf => {
       const ratio = sf.amount / 100;
       totalCal += sf.cal * ratio;
-      totalP += sf.protein * ratio;
-      totalC += sf.carbs * ratio;
-      totalF += sf.fat * ratio;
+      totalProtein += sf.protein * ratio;
+      totalCarbs += sf.carbs * ratio;
+      totalFat += sf.fat * ratio;
     });
-    resultDiv.innerHTML = `
-      <div style="text-align:center;line-height:2.5">
-        <div style="font-size:22px;color:#e74c3c">🔥 ${Math.round(totalCal).toLocaleString('fa-IR')} کیلوکالری</div>
-        <div>🥩 پروتئین: ${totalP.toFixed(1).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d])} گرم</div>
-        <div>🍞 کربوهیدرات: ${totalC.toFixed(1).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d])} گرم</div>
-        <div>🧈 چربی: ${totalF.toFixed(1).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d])} گرم</div>
+
+    const resultBox = container.querySelector('#cal-result');
+    resultBox.innerHTML = `
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:2.4rem;font-weight:900;color:var(--accent)">${Math.round(totalCal).toLocaleString('fa-IR')}</div>
+        <div style="font-size:.85rem;color:var(--text2)">کیلوکالری</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px">
+        <div style="text-align:center;padding:8px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1.1rem;font-weight:900;color:#3498db">${totalProtein.toFixed(1)}g</div>
+          <div style="font-size:.65rem;color:var(--text2)">پروتئین</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1.1rem;font-weight:900;color:#f39c12">${totalCarbs.toFixed(1)}g</div>
+          <div style="font-size:.65rem;color:var(--text2)">کربوهیدرات</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1.1rem;font-weight:900;color:#e74c3c">${totalFat.toFixed(1)}g</div>
+          <div style="font-size:.65rem;color:var(--text2)">چربی</div>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div style="font-size:.75rem;color:var(--text2);margin-bottom:4px">اقلام:</div>
+        ${selectedFoods.map(sf => `<div style="font-size:.8rem;padding:2px 0">${sf.name} — ${sf.amount}g — ${Math.round(sf.cal * sf.amount / 100)} kcal</div>`).join('')}
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── health-heartbeat ─── */
 function renderHeartbeat(container) {
   container.innerHTML = `
-    <div class="input-group">
-      <label>سن شما:</label>
-      <input type="number" id="hb-age" placeholder="مثلاً ۳۰" min="5" max="120">
+    <div style="text-align:center">
+      <div id="hb-bpm" style="font-size:3rem;font-weight:900;color:var(--danger)">--</div>
+      <div style="font-size:.75rem;color:var(--text2);margin-bottom:12px">BPM</div>
+      <div style="text-align:center;margin:12px 0">
+        <button class="btn" id="hb-tap" style="font-size:20px;padding:16px 32px;border-radius:50%;width:120px;height:120px">❤️<br>ضربه</button>
+      </div>
+      <div style="text-align:center;margin:8px 0">
+        <button class="btn btn-ghost" id="hb-reset" style="font-size:13px">🔄 ریست</button>
+      </div>
+      <div id="hb-info" style="margin-top:12px;font-size:13px;color:var(--text2);text-align:center">۱۵ ثانیه ضربه بزنید تا ضربان قلب محاسبه شود</div>
+      <div id="hb-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
     </div>
-    <div style="text-align:center;margin:16px 0">
-      <div id="hb-bpm" style="font-size:48px;font-weight:bold;color:#e74c3c">--</div>
-      <div style="color:#aaa;font-size:14px">BPM</div>
-    </div>
-    <div style="text-align:center;margin:12px 0">
-      <button class="btn" id="hb-tap" style="font-size:20px;padding:16px 32px;border-radius:50%;width:120px;height:120px">❤️<br>ضربه</button>
-    </div>
-    <div style="text-align:center;margin:8px 0">
-      <button class="btn" id="hb-reset" style="font-size:13px">🔄 ریست</button>
-    </div>
-    <div id="hb-info" style="margin-top:12px;font-size:13px;color:#aaa;text-align:center">۱۵ ثانیه ضربه بزنید تا ضربان قلب محاسبه شود</div>
-    <div class="result" id="hb-result"></div>
   `;
 
   let taps = [];
@@ -5243,8 +5257,6 @@ function renderHeartbeat(container) {
   container.querySelector('#hb-tap').addEventListener('click', () => {
     const now = Date.now();
     taps.push(now);
-
-    // keep only last 15 seconds
     taps = taps.filter(t => now - t < 15000);
 
     if (taps.length < 2) {
@@ -5254,42 +5266,125 @@ function renderHeartbeat(container) {
 
     const elapsed = (taps[taps.length - 1] - taps[0]) / 1000;
     const bpm = Math.round(((taps.length - 1) / elapsed) * 60);
-    bpmDiv.textContent = bpm.toLocaleString('fa-IR');
-    infoDiv.textContent = `${taps.length.toLocaleString('fa-IR')} ضربه در ${(elapsed.toFixed(1)).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d])} ثانیه`;
+    bpmDiv.textContent = bpm;
 
-    // show zone if age entered
-    const age = parseInt(container.querySelector('#hb-age').value);
-    if (age > 0) {
-      const maxHR = 220 - age;
-      const zones = [
-        { name: 'استراحت', min: 0, max: Math.round(maxHR * 0.5), color: '#3498db' },
-        { name: 'چربی‌سوزی', min: Math.round(maxHR * 0.5), max: Math.round(maxHR * 0.7), color: '#2ecc71' },
-        { name: 'قلبی‌عروقی', min: Math.round(maxHR * 0.7), max: Math.round(maxHR * 0.85), color: '#f39c12' },
-        { name: 'اوج', min: Math.round(maxHR * 0.85), max: maxHR, color: '#e74c3c' },
-      ];
-      const zone = zones.find(z => bpm >= z.min && bpm < z.max) || zones[zones.length - 1];
-      resultDiv.innerHTML = `
-        <div style="text-align:center">
-          <div style="margin:8px 0">حداکثر ضربان (${age.toLocaleString('fa-IR')} سال): <strong>${maxHR.toLocaleString('fa-IR')}</strong></div>
-          <div style="padding:8px;border-radius:8px;background:${zone.color}22;border:1px solid ${zone.color};color:${zone.color};font-size:18px;font-weight:bold">
-            ناحیه: ${zone.name}
-          </div>
-          <div style="margin-top:12px;display:flex;gap:4px;justify-content:center">
-            ${zones.map(z => `<div style="flex:1;padding:4px;border-radius:4px;background:${z.color}22;text-align:center;font-size:11px">
-              <div style="color:${z.color}">${z.name}</div>
-              <div>${z.min}-${z.max}</div>
-            </div>`).join('')}
-          </div>
-        </div>
-      `;
-    }
+    // Determine zone
+    const age = 30; // default age
+    const maxHR = 220 - age;
+    const zones = [
+      { name: 'استراحت', min: 0, max: Math.round(maxHR * 0.5), color: '#3498db' },
+      { name: 'چربیسوزی', min: Math.round(maxHR * 0.5), max: Math.round(maxHR * 0.7), color: '#2ecc71' },
+      { name: 'قلبیعروقی', min: Math.round(maxHR * 0.7), max: Math.round(maxHR * 0.85), color: '#f39c12' },
+      { name: 'اوج', min: Math.round(maxHR * 0.85), max: maxHR, color: '#e74c3c' },
+    ];
+    const zone = zones.find(z => bpm >= z.min && bpm < z.max) || zones[zones.length - 1];
+
+    infoDiv.innerHTML = `
+      <div style="padding:8px;border-radius:8px;background:${zone.color}22;border:1px solid ${zone.color};color:${zone.color};font-weight:700;margin-bottom:8px">ناحیه: ${zone.name}</div>
+      <div style="display:flex;gap:4px;justify-content:center">
+        ${zones.map(z => `<div style="flex:1;padding:4px;border-radius:4px;background:${z.color}22;text-align:center;font-size:10px;${bpm >= z.min && bpm < z.max ? 'border:2px solid ' + z.color : ''}"><div style="color:${z.color};font-weight:700">${z.name}</div><div>${z.min}-${z.max}</div></div>`).join('')}
+      </div>
+    `;
   });
 
   container.querySelector('#hb-reset').addEventListener('click', () => {
     taps = [];
     bpmDiv.textContent = '--';
     infoDiv.textContent = '۱۵ ثانیه ضربه بزنید تا ضربان قلب محاسبه شود';
-    resultDiv.innerHTML = '';
+    resultDiv.style.display = 'none';
+  });
+}
+
+/* ─── health-bmi ─── */
+function renderHealthBmi(container) {
+  container.innerHTML = `
+    <div class="input-group">
+      <label>وزن (کیلوگرم):</label>
+      <input type="number" id="hbmi-weight" placeholder="مثال: 70" min="1">
+    </div>
+    <div class="input-group">
+      <label>قد (سانتیمتر):</label>
+      <input type="number" id="hbmi-height" placeholder="مثال: 175" min="1">
+    </div>
+    <div class="input-group">
+      <label>سن:</label>
+      <input type="number" id="hbmi-age" placeholder="مثال: 30" min="1" max="120">
+    </div>
+    <div class="input-group">
+      <label>جنسیت:</label>
+      <select id="hbmi-gender">
+        <option value="male">مرد</option>
+        <option value="female">زن</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" id="hbmi-calc" style="width:100%;margin-top:8px">محاسبه</button>
+    <div id="hbmi-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
+  `;
+
+  container.querySelector('#hbmi-calc').addEventListener('click', () => {
+    const w = parseFloat(container.querySelector('#hbmi-weight').value);
+    const h = parseFloat(container.querySelector('#hbmi-height').value);
+    const age = parseInt(container.querySelector('#hbmi-age').value) || 30;
+    const gender = container.querySelector('#hbmi-gender').value;
+
+    if (!w || !h || w <= 0 || h <= 0) { showToast('وزن و قد را وارد کنید'); return; }
+
+    const hm = h / 100;
+    const bmi = w / (hm * hm);
+
+    let category, catColor;
+    if (bmi < 18.5) { category = 'کمبود وزن'; catColor = '#3498db'; }
+    else if (bmi < 25) { category = 'وزن نرمال'; catColor = '#2ecc71'; }
+    else if (bmi < 30) { category = 'اضافه وزن'; catColor = '#f39c12'; }
+    else { category = 'چاق'; catColor = '#e74c3c'; }
+
+    // Ideal weight range
+    const idealMin = (18.5 * hm * hm).toFixed(1);
+    const idealMax = (25 * hm * hm).toFixed(1);
+
+    // BMR (Mifflin-St Jeor)
+    let bmr;
+    if (gender === 'male') bmr = 10 * w + 6.25 * h - 5 * age + 5;
+    else bmr = 10 * w + 6.25 * h - 5 * age - 161;
+
+    // Daily calories
+    const sedentary = Math.round(bmr * 1.2);
+    const moderate = Math.round(bmr * 1.55);
+    const active = Math.round(bmr * 1.725);
+
+    const resultBox = container.querySelector('#hbmi-result');
+    resultBox.innerHTML = `
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:2.4rem;font-weight:900;color:${catColor}">${bmi.toFixed(1)}</div>
+        <div style="margin-top:6px"><span style="display:inline-block;padding:3px 12px;border-radius:20px;font-size:.7rem;font-weight:600;background:${catColor}22;color:${catColor};border:1px solid ${catColor}">${category}</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <div style="text-align:center;padding:10px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1rem;font-weight:900;color:var(--accent)">${idealMin} - ${idealMax}</div>
+          <div style="font-size:.65rem;color:var(--text2)">وزن ایده‌آل (kg)</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1rem;font-weight:900;color:var(--accent)">${Math.round(bmr)}</div>
+          <div style="font-size:.65rem;color:var(--text2)">متابولیسم پایه (BMR)</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:.75rem;color:var(--text2)">
+        <div style="font-weight:700;margin-bottom:4px">کالری روزانه مورد نیاز:</div>
+        <div>🪑 کم‌تحرک: <strong>${sedentary.toLocaleString('fa-IR')}</strong> kcal</div>
+        <div>🚶 متوسط: <strong>${moderate.toLocaleString('fa-IR')}</strong> kcal</div>
+        <div>🏃 فعال: <strong>${active.toLocaleString('fa-IR')}</strong> kcal</div>
+      </div>
+      <div style="margin-top:12px">
+        <div style="font-size:.65rem;color:var(--text2);margin-bottom:4px">محدوده BMI:</div>
+        <div style="position:relative;height:24px;border-radius:12px;overflow:hidden;background:linear-gradient(90deg,#3498db 0%,#2ecc71 30%,#f1c40f 55%,#e74c3c 80%,#8e44ad 100%)">
+          <div style="position:absolute;top:-2px;width:4px;height:28px;background:#fff;border-radius:2px;box-shadow:0 0 6px rgba(0,0,0,.5);transition:left .5s;left:${Math.min(Math.max((bmi - 10) / 35, 0), 1) * 100}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.55rem;color:var(--text2);margin-top:4px">
+          <span>کمبود</span><span>نرمال</span><span>اضافه</span><span>چاق</span>
+        </div>
+      </div>
+    `;
+    resultBox.style.display = 'block';
   });
 }
 
@@ -5302,22 +5397,22 @@ function renderChildHeight(container) {
     </div>
     <div class="input-group">
       <label>سن فعلی (سال):</label>
-      <input type="number" id="ch-age" placeholder="مثلاً ۵" min="2" max="18">
+      <input type="number" id="ch-age" placeholder="مثال: 8" min="2" max="18">
     </div>
     <div class="input-group">
-      <label>قد فعلی (سانتی‌متر):</label>
-      <input type="number" id="ch-height" placeholder="مثلاً ۱۱۰" min="50" max="220">
+      <label>قد فعلی (سانتیمتر):</label>
+      <input type="number" id="ch-height" placeholder="مثال: 130" min="50" max="220">
     </div>
     <div class="input-group">
-      <label>قد پدر (سانتی‌متر):</label>
-      <input type="number" id="ch-father" placeholder="مثلاً ۱۷۵" min="130" max="230">
+      <label>قد پدر (سانتیمتر):</label>
+      <input type="number" id="ch-father" placeholder="مثال: 175" min="130" max="230">
     </div>
     <div class="input-group">
-      <label>قد مادر (سانتی‌متر):</label>
-      <input type="number" id="ch-mother" placeholder="مثلاً ۱۶۲" min="130" max="230">
+      <label>قد مادر (سانتیمتر):</label>
+      <input type="number" id="ch-mother" placeholder="مثال: 162" min="130" max="230">
     </div>
-    <button class="btn" id="ch-calc" style="margin:8px 0">محاسبه</button>
-    <div class="result" id="ch-result"></div>
+    <button class="btn btn-primary" id="ch-calc" style="width:100%;margin-top:8px">محاسبه</button>
+    <div id="ch-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#ch-calc').addEventListener('click', () => {
@@ -5327,222 +5422,194 @@ function renderChildHeight(container) {
     const father = parseFloat(container.querySelector('#ch-father').value);
     const mother = parseFloat(container.querySelector('#ch-mother').value);
 
-    if (!age || !height || !father || !mother) {
-      showToast('همه فیلدها را پر کنید', 'warning');
-      return;
-    }
+    if (!age || !height || !father || !mother) { showToast('همه فیلدها را پر کنید'); return; }
 
     // Mid-parental method
     let midParental;
-    if (gender === 'male') {
-      midParental = ((father + mother + 13) / 2);
-    } else {
-      midParental = ((father + mother - 13) / 2);
-    }
+    if (gender === 'male') midParental = ((father + mother + 13) / 2);
+    else midParental = ((father + mother - 13) / 2);
 
-    // Adjust based on current height vs expected height for age
-    // Using simplified growth chart approximation
-    const expectedHeightAtAge = gender === 'male'
-      ? 50 + (age / 18) * (midParental - 50) * 0.85
-      : 49 + (age / 18) * (midParental - 49) * 0.85;
+    // Growth percentile estimation
+    const growthRemaining = gender === 'male'
+      ? (18 - age) * 6.5  // boys grow ~6.5cm/year after puberty
+      : (16 - age) * 5.5;  // girls grow ~5.5cm/year
 
-    const ratio = height / expectedHeightAtAge;
-    const predicted = Math.round(midParental * ratio);
-    const lowRange = predicted - 8;
-    const highRange = predicted + 8;
+    const estimatedHeight = Math.min(midParental, height + Math.max(growthRemaining, 0));
+    const heightRange = [Math.round(estimatedHeight - 5), Math.round(estimatedHeight + 5)];
 
-    const n = v => v.toLocaleString('fa-IR');
-
-    // Percentile estimate
-    let percentile;
-    if (ratio > 1.1) percentile = 'بالای ۹۵٪';
-    else if (ratio > 1.05) percentile = '۹۰-۹۵٪';
-    else if (ratio > 0.98) percentile = '۵۰-۸۵٪';
-    else if (ratio > 0.92) percentile = '۲۵-۵۰٪';
-    else if (ratio > 0.85) percentile = '۱۰-۲۵٪';
-    else percentile = 'زیر ۱۰٪';
-
-    container.querySelector('#ch-result').innerHTML = `
-      <div style="text-align:center;line-height:2.5">
-        <div style="font-size:16px;margin-bottom:8px">قد تخمینی بزرگسالی:</div>
-        <div style="font-size:32px;font-weight:bold;color:#2ecc71">${n(predicted)} سانتی‌متر</div>
-        <div style="color:#aaa;font-size:14px">محدوده: ${n(lowRange)} تا ${n(highRange)} سانتی‌متر</div>
-        <div style="margin-top:8px">صک صدک قدی: <strong>${percentile}</strong></div>
-        <div style="margin-top:8px;font-size:12px;color:#666">روش میانگین والدین با اصلاح بر اساس قد فعلی</div>
+    const resultBox = container.querySelector('#ch-result');
+    resultBox.innerHTML = `
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:2.4rem;font-weight:900;color:var(--accent)">${Math.round(estimatedHeight)}</div>
+        <div style="font-size:.85rem;color:var(--text2)">سانتیمتر (قد تقریبی بزرگسالی)</div>
+        <div style="font-size:1rem;font-weight:700;margin-top:8px">محدوده: ${heightRange[0]} - ${heightRange[1]} cm</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+        <div style="text-align:center;padding:10px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1rem;font-weight:900;color:var(--accent)">${Math.round(midParental)}</div>
+          <div style="font-size:.65rem;color:var(--text2)">میانگین والدین</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--glass2);border-radius:8px">
+          <div style="font-size:1rem;font-weight:900;color:var(--accent)">${Math.round(height + Math.max(growthRemaining, 0))}</div>
+          <div style="font-size:.65rem;color:var(--text2)">بر اساس رشد فعلی</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:.75rem;color:var(--text2);text-align:center">
+        ⚠️ این تخمین بر اساس فرمول Mid-Parental است و ممکن است دقیق نباشد.
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── Register ─── */
 const healthTools = [
-  { id: 'health-water', name: 'آب مصرفی', icon: '💧', category: 'health', keywords: ['آب', 'water', 'مصرف', 'لیوان', 'نوشیدنی'], desc: 'محاسبه مصرف روزانه آب بر اساس وزن', render: renderWater },
+  { id: 'health-water', name: 'آب مصرفی', icon: '💧', category: 'health', keywords: ['آب', 'water', 'مصرف', 'لیوان', 'نوشیدنی'], desc: 'محاسبه مصرف روزانه آب با ردیاب لیوان', render: renderWater },
   { id: 'health-calories', name: 'کالری غذا', icon: '🍎', category: 'health', keywords: ['کالری', 'غذا', 'calories', 'تغذیه', 'رژیم'], desc: 'محاسبه کالری و ارزش غذایی', render: renderCalories },
   { id: 'health-heartbeat', name: 'ضربان قلب', icon: '❤️', category: 'health', keywords: ['ضربان', 'قلب', 'pulse', 'heartbeat', 'BPM'], desc: 'شمارش ضربان قلب و نمایش ناحیه', render: renderHeartbeat },
-  { id: 'health-childheight', name: 'قد بچه', icon: '👶', category: 'health', keywords: ['قد', 'بچه', 'کودک', 'height', 'child'], desc: 'پیش‌بینی قد بزرگسالی کودک', render: renderChildHeight },
+  { id: 'health-bmi', name: 'BMI + BMR', icon: '⚖️', category: 'health', keywords: ['bmi', 'bmr', 'وزن', 'قد', 'کالری', 'متابولیسم'], desc: 'شاخص توده بدنی + متابولیسم پایه + کالری روزانه', render: renderHealthBmi },
+  { id: 'health-childheight', name: 'قد بچه', icon: '👶', category: 'health', keywords: ['قد', 'بچه', 'کودک', 'height', 'child'], desc: 'پیشبینی قد بزرگسالی کودک', render: renderChildHeight },
 ];
+
+registerTools(healthTools);
+
 
 registerTools(healthTools);
 
 
 
 // ═══ iran-info ═══
+// ═══════════════════════════════════════════
+// اطلاعات ایران — Iran Info Tools (بازنویسی کامل)
+// ═══════════════════════════════════════════
 
-/* ─── info-postal ─── */
 const POSTAL_PREFIXES = {
-  '10': 'تهران', '11': 'تهران', '12': 'تهران', '13': 'تهران', '14': 'تهران', '15': 'تهران', '16': 'تهران', '17': 'تهران', '18': 'تهران', '19': 'تهران',
-  '31': 'اصفهان', '32': 'اصفهان', '33': 'اصفهان',
-  '34': 'خراسان رضوی', '35': 'خراسان رضوی',
-  '36': 'خراسان جنوبی',
-  '37': 'خراسان شمالی',
-  '38': 'یزد',
-  '39': 'سمنان',
-  '41': 'آذربایجان شرقی', '42': 'آذربایجان شرقی',
-  '43': 'آذربایجان غربی', '44': 'آذربایجان غربی',
-  '45': 'اردبیل',
-  '46': 'زنجان',
-  '47': 'گیلان', '48': 'گیلان',
-  '49': 'مازندران', '50': 'مازندران', '51': 'مازندران',
-  '52': 'گلستان',
-  '53': 'قم',
-  '54': 'مرکزی',
-  '55': 'همدان',
-  '56': 'کردستان',
-  '57': 'کرمانشاه',
-  '58': 'ایلام',
-  '59': 'لرستان',
-  '61': 'خوزستان', '62': 'خوزستان',
-  '63': 'چهارمحال و بختیاری',
-  '64': 'کهگیلویه و بویراحمد',
-  '65': 'بوشهر',
-  '66': 'فارس', '67': 'فارس',
-  '68': 'کرمان', '69': 'کرمان',
-  '71': 'هرمزگان',
-  '72': 'سیستان و بلوچستان', '73': 'سیستان و بلوچستان',
-  '74': 'قزوین',
-  '75': 'البرز',
-  '76': 'تهران (شهرهای جدید)',
-  '77': 'تهران (جنوب)',
-  '78': 'تهران (شرق)',
-  '79': 'تهران (غرب)',
-  '80': 'تبریز',
-  '81': 'شیراز',
-  '82': 'مشهد',
-  '83': 'اهواز',
-  '84': 'کرمانشاه',
-  '85': 'رشت',
-  '86': 'همدان',
-  '87': 'یزد',
-  '88': 'اردبیل',
-  '89': 'بندرعباس',
-  '90': 'زاهدان',
-  '91': 'زنجان',
-  '92': 'سنندج',
-  '93': 'بجنورد',
-  '94': 'اراک',
-  '95': 'بوشهر',
-  '96': 'ایلام',
-  '97': 'شهرکرد',
-  '98': 'یاسوج',
-  '99': 'قم',
+  '10':'تهران','11':'تهران','12':'تهران','13':'تهران','14':'تهران','15':'تهران','16':'تهران','17':'تهران','18':'تهران','19':'تهران',
+  '31':'اصفهان','32':'اصفهان','33':'اصفهان',
+  '34':'خراسان رضوی','35':'خراسان رضوی',
+  '36':'خراسان جنوبی','37':'خراسان شمالی','38':'یزد','39':'سمنان',
+  '41':'آذربایجان شرقی','42':'آذربایجان شرقی',
+  '43':'آذربایجان غربی','44':'آذربایجان غربی',
+  '45':'اردبیل','46':'زنجان','47':'گیلان','48':'گیلان',
+  '49':'مازندران','50':'مازندران','51':'مازندران','52':'گلستان',
+  '53':'قم','54':'مرکزی','55':'همدان','56':'کردستان',
+  '57':'کرمانشاه','58':'ایلام','59':'لرستان',
+  '61':'خوزستان','62':'خوزستان','63':'چهارمحال و بختیاری',
+  '64':'کهگیلویه و بویراحمد','65':'بوشهر','66':'فارس','67':'فارس',
+  '68':'کرمان','69':'کرمان','71':'هرمزگان',
+  '72':'سیستان و بلوچستان','73':'سیستان و بلوچستان',
+  '74':'قزوین','75':'البرز','76':'تهران','77':'تهران','78':'تهران','79':'تهران',
 };
 
+const BANK_CODES = {
+  '010':'بانک مرکزی','011':'بانک صنعت و معدن','012':'بانک توسعه صادرات',
+  '013':'بانک کشاورزی','014':'بانک مسکن','015':'بانک سپه',
+  '016':'بانک توسعهتعاون','017':'بانک ملی','018':'بانک اقتصاد نوین',
+  '019':'بانک پارسیان','020':'بانک کارآفرین','021':'بانک سامان',
+  '022':'بانک پاسارگاد','023':'بانک سینا','024':'بانک خاورمیانه',
+  '025':'بانک شهر','026':'بانک آینده','027':'بانک دی',
+  '028':'بانک ایرانزمین','029':'بانک رفاه','030':'بانک حکمت ایرانیان',
+  '031':'بانک گردشگری','032':'بانک مهر ایران','033':'بانک قرضالحسنه رسالت',
+  '034':'بانک قرضالحسنه مهر','035':'بانک مشترک ایران-ونزوئلا',
+  '051':'موسسه اعتباری نور','052':'موسسه اعتباری کوثر',
+  '053':'موسسه اعتباری ملل','054':'موسسه اعتباری عسکریه',
+  '055':'بانک انصار','056':'بانک قوامین',
+  '058':'بانک مهر اقتصاد','059':'بانک ایرانونزوئلا',
+};
+
+const CARD_BINS = {
+  '603799':'بانک ملی','603770':'بانک صادرات','589210':'بانک سپه',
+  '627353':'بانک تجارت','589463':'بانک رفاه','627381':'بانک انصار',
+  '603769':'بانک کشاورزی','636214':'بانک آینده','628023':'بانک مسکن',
+  '627760':'پستبانک','502908':'بانک توسعه تعاون','627488':'بانک کارآفرین',
+  '622106':'بانک پارسیان','639607':'بانک سینا','639346':'بانک سامان',
+  '502229':'بانک پاسارگاد','627412':'بانک اقتصاد نوین','627353':'بانک تجارت',
+  '502806':'بانک شهر','627381':'بانک انصار','502938':'بانک دی',
+  '606373':'بانک قرضالحسنه مهر','628023':'بانک مسکن',
+  '636949':'بانک حکمت','504172':'بانک رسالت','621986':'بانک ایرانزمین',
+  '639599':'بانک قوامین','505416':'بانک گردشگری',
+  '636797':'بانک مرکزی','505785':'بانک ایران و ونزوئلا',
+};
+
+function luhnCheck(num) {
+  let sum = 0;
+  for (let i = 0; i < num.length; i++) {
+    let d = parseInt(num[num.length - 1 - i]);
+    if (i % 2 === 1) d *= 2;
+    if (d > 9) d -= 9;
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+/* ─── info-postal ─── */
 function renderPostal(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>کد پستی (۱۰ رقم):</label>
-      <input type="text" id="postal-input" placeholder="مثلاً ۱۲۳۴۵۶۷۸۹۰" maxlength="10" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:4px">
+      <input type="text" id="postal-input" placeholder="مثلاً 1234567890" maxlength="10" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:4px">
     </div>
-    <button class="btn" id="postal-check" style="margin:8px 0">بررسی</button>
-    <div class="result" id="postal-result"></div>
+    <button class="btn btn-primary" id="postal-check" style="width:100%;margin-top:8px">بررسی</button>
+    <div id="postal-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#postal-check').addEventListener('click', () => {
     const raw = container.querySelector('#postal-input').value.replace(/\s/g, '');
-    if (!/^\d{10}$/.test(raw)) {
-      showToast('کد پستی باید ۱۰ رقم باشد', 'warning');
-      return;
-    }
+    if (!/^\d{10}$/.test(raw)) { showToast('کد پستی باید ۱۰ رقم باشد'); return; }
 
     const prefix = raw.substring(0, 2);
     const province = POSTAL_PREFIXES[prefix] || 'نامشخص';
 
-    container.querySelector('#postal-result').innerHTML = `
+    const resultBox = container.querySelector('#postal-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.2">
         <div style="font-size:18px">📮 کد پستی: <strong dir="ltr">${raw}</strong></div>
         <div>استان/شهر: <strong>${province}</strong></div>
-        <div style="font-size:13px;color:#aaa">پیشوند: ${prefix}</div>
+        <div style="font-size:13px;color:var(--text2)">پیشوند: ${prefix}</div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── info-sheba ─── */
-const BANK_CODES = {
-  '010': 'بانک مرکزی', '011': 'بانک صنعت و معدن', '012': 'بانک توسعه صادرات',
-  '013': 'بانک کشاورزی', '014': 'بانک مسکن', '015': 'بانک سپه',
-  '016': 'بانک توسعهتعاون', '017': 'بانک ملی', '018': 'بانک اقتصاد نوین',
-  '019': 'بانک پارسیان', '020': 'بانک کارآفرین', '021': 'بانک سامان',
-  '022': 'بانک پاسارگاد', '023': 'بانک سینا', '024': 'بانک خاورمیانه',
-  '025': 'بانک شهر', '026': 'بانک آینده', '027': 'بانک دی',
-  '028': 'بانک ایران‌زمین', '029': 'بانک رفاه', '030': 'بانک حکمت ایرانیان',
-  '031': 'بانک گردشگری', '032': 'بانک مهر ایران', '033': 'بانک قرض‌الحسنه رسالت',
-  '034': 'بانک قرض‌الحسنه مهر', '035': 'بانک مشترک ایران-ونزوئلا',
-  '051': 'موسسه اعتباری نور', '052': 'موسسه اعتباری کوثر',
-  '053': 'موسسه اعتباری ملل', '054': 'موسسه اعتباری عسکریه',
-  '055': 'بانک انصار', '056': 'بانک قوامین',
-  '058': 'بانک مهر اقتصاد', '059': 'بانک ایران‌ونزوئلا',
-};
-
 function renderSheba(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>شماره شبا (IR + ۲۴ رقم):</label>
       <input type="text" id="sheba-input" placeholder="IR00 0000 0000 0000 0000 0000 00" maxlength="30" style="direction:ltr;text-align:center;font-size:16px;letter-spacing:2px">
     </div>
-    <button class="btn" id="sheba-check" style="margin:8px 0">بررسی</button>
-    <div class="result" id="sheba-result"></div>
-    <details style="margin-top:12px;font-size:12px">
-      <summary style="cursor:pointer;color:#aaa">لیست کدهای بانک‌ها</summary>
-      <div style="max-height:200px;overflow-y:auto;margin-top:8px;line-height:2">
-        ${Object.entries(BANK_CODES).map(([code, name]) => `<div>${code}: ${name}</div>`).join('')}
-      </div>
-    </details>
+    <button class="btn btn-primary" id="sheba-check" style="width:100%;margin-top:8px">بررسی</button>
+    <div id="sheba-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#sheba-check').addEventListener('click', () => {
     let raw = container.querySelector('#sheba-input').value.replace(/\s/g, '').toUpperCase();
-
-    // Add IR prefix if missing
-    if (/^\d/.test(raw)) raw = 'IR' + raw;
-
-    if (!/^IR\d{24}$/.test(raw)) {
-      showToast('شبا باید به فرمت IR + ۲۴ رقم باشد', 'warning');
-      return;
-    }
-
-    // Validate IBAN checksum
-    // Move IR00 to end, replace IR with 1827 (I=18, R=27)
-    const rearranged = raw.substring(4) + raw.substring(2, 4);
-    const numericStr = rearranged.split('').map(c => {
-      if (/\d/.test(c)) return c;
-      return (c.charCodeAt(0) - 55).toString();
-    }).join('');
-
-    // Compute mod 97 using BigInt
-    let remainder = BigInt(numericStr) % 97n;
-    const valid = remainder === 1n;
+    if (!/^IR\d{24}$/.test(raw)) { showToast('شبا باید به فرمت IR + ۲۴ رقم باشد'); return; }
 
     const bankCode = raw.substring(4, 7);
     const bankName = BANK_CODES[bankCode] || 'نامشخص';
 
-    container.querySelector('#sheba-result').innerHTML = `
+    // Validate checksum (simplified)
+    const digits = raw.substring(4) + raw.substring(0, 4);
+    let numStr = '';
+    for (const ch of digits) {
+      if (ch >= '0' && ch <= '9') numStr += ch;
+      else numStr += (ch.charCodeAt(0) - 55).toString();
+    }
+    let remainder = BigInt(numStr) % 97n;
+    const valid = remainder === 1n;
+
+    const formatted = raw.match(/.{1,4}/g).join(' ');
+    const resultBox = container.querySelector('#sheba-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.2">
-        <div style="font-size:16px;direction:ltr">🏦 ${raw}</div>
+        <div style="font-size:20px;letter-spacing:4px;direction:ltr;font-family:monospace;background:var(--glass2);padding:14px;border-radius:12px;margin:12px 0">🏦 ${formatted}</div>
         <div>بانک: <strong>${bankName}</strong> (کد: ${bankCode})</div>
-        <div>اعتبار سنجی: <strong style="color:${valid ? '#2ecc71' : '#e74c3c'}">${valid ? '✅ معتبر' : '❌ نامعتبر'}</strong></div>
+        <div>اعتبارسنجی: <strong style="color:${valid ? '#2ecc71' : '#e74c3c'}">${valid ? '✅ معتبر' : '❌ نامعتبر'}</strong></div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
@@ -5551,122 +5618,82 @@ function renderNational(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>کد ملی (۱۰ رقم):</label>
-      <input type="text" id="nat-input" placeholder="مثلاً ۰۱۲۳۴۵۶۷۸۹" maxlength="10" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:4px">
+      <input type="text" id="nat-input" placeholder="مثلاً 0123456789" maxlength="10" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:4px">
     </div>
-    <button class="btn" id="nat-check" style="margin:8px 0">بررسی</button>
-    <div class="result" id="nat-result"></div>
+    <button class="btn btn-primary" id="nat-check" style="width:100%;margin-top:8px">بررسی</button>
+    <div id="nat-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#nat-check').addEventListener('click', () => {
     const raw = container.querySelector('#nat-input').value.replace(/\s/g, '');
-    if (!/^\d{10}$/.test(raw)) {
-      showToast('کد ملی باید ۱۰ رقم باشد', 'warning');
-      return;
-    }
-
-    // All same digits → invalid
+    if (!/^\d{10}$/.test(raw)) { showToast('کد ملی باید ۱۰ رقم باشد'); return; }
     if (/^(\d)\1{9}$/.test(raw)) {
-      container.querySelector('#nat-result').innerHTML = `
-        <div style="text-align:center">
-          <div style="font-size:20px;color:#e74c3c">❌ کد ملی نامعتبر</div>
-          <div style="font-size:13px;color:#aaa;margin-top:4px">کد ملی نمی‌تواند همه ارقام یکسان باشد</div>
-        </div>
-      `;
+      const resultBox = container.querySelector('#nat-result');
+      resultBox.innerHTML = '<div style="text-align:center;color:var(--danger)">❌ کد ملی نامعتبر (همه ارقام یکسان)</div>';
+      resultBox.style.display = 'block';
       return;
     }
 
-    // Checksum algorithm
     const digits = raw.split('').map(Number);
     const check = digits[9];
     let sum = 0;
-    for (let i = 0; i < 9; i++) {
-      sum += digits[i] * (10 - i);
-    }
+    for (let i = 0; i < 9; i++) sum += digits[i] * (10 - i);
     const remainder = sum % 11;
-    let valid;
-    if (remainder < 2) {
-      valid = check === remainder;
-    } else {
-      valid = check === 11 - remainder;
-    }
+    const valid = (remainder < 2 && check === remainder) || (remainder >= 2 && check === 11 - remainder);
 
-    container.querySelector('#nat-result').innerHTML = `
+    const resultBox = container.querySelector('#nat-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.2">
-        <div style="font-size:16px">🪪 کد ملی: <strong dir="ltr">${raw}</strong></div>
-        <div style="font-size:20px;color:${valid ? '#2ecc71' : '#e74c3c'}">
-          ${valid ? '✅ کد ملی معتبر است' : '❌ کد ملی نامعتبر است'}
-        </div>
+        <div style="font-size:20px">🪪 کد ملی: <strong dir="ltr">${raw}</strong></div>
+        <div style="font-size:18px;color:${valid ? '#2ecc71' : '#e74c3c'}">${valid ? '✅ معتبر' : '❌ نامعتبر'}</div>
+        <div style="font-size:13px;color:var(--text2)">الگوریتم: چکسام ۱۱</div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── info-plate ─── */
 const PLATE_PROVINCES = {
-  '10': 'تهران', '11': 'تهران', '12': 'تهران', '13': 'تهران', '14': 'تهران', '15': 'تهران', '16': 'تهران', '17': 'تهران', '18': 'تهران', '19': 'تهران', '20': 'تهران', '21': 'تهران',
-  '22': 'کرج',
-  '23': 'کرج (البرز)',
-  '24': 'کردستان', '25': 'کردستان',
-  '26': 'زنجان', '27': 'زنجان',
-  '28': 'همدان', '29': 'همدان',
-  '30': 'کرمانشاه', '31': 'کرمانشاه',
-  '32': 'ایلام',
-  '33': 'لرستان', '34': 'لرستان',
-  '35': 'خوزستان', '36': 'خوزستان', '37': 'خوزستان',
-  '38': 'چهارمحال و بختیاری',
-  '39': 'کهگیلویه و بویراحمد',
-  '40': 'اصفهان', '41': 'اصفهان', '42': 'اصفهان', '43': 'اصفهان',
-  '44': 'سمنان', '45': 'سمنان',
-  '46': 'قم',
-  '47': 'مرکزی', '48': 'مرکزی',
-  '49': 'قزوین',
-  '50': 'مازندران', '51': 'مازندران', '52': 'مازندران',
-  '53': 'گیلان', '54': 'گیلان', '55': 'گیلان',
-  '56': 'گلستان', '57': 'گلستان',
-  '58': 'اردبیل', '59': 'اردبیل',
-  '60': 'آذربایجان شرقی', '61': 'آذربایجان شرقی', '62': 'آذربایجان شرقی', '63': 'آذربایجان شرقی',
-  '64': 'آذربایجان غربی', '65': 'آذربایجان غربی', '66': 'آذربایجان غربی', '67': 'آذربایجان غربی',
-  '68': 'خراسان رضوی', '69': 'خراسان رضوی', '70': 'خراسان رضوی', '71': 'خراسان رضوی',
-  '72': 'خراسان شمالی',
-  '73': 'خراسان جنوبی',
-  '74': 'سیستان و بلوچستان', '75': 'سیستان و بلوچستان',
-  '76': 'کرمان', '77': 'کرمان',
-  '78': 'هرمزگان', '79': 'هررمزگان',
-  '80': 'فارس', '81': 'فارس', '82': 'فارس', '83': 'فارس',
-  '84': 'بوشهر', '85': 'بوشهر',
-  '86': 'یزد', '87': 'یزد',
-  '88': 'البرز',
-  '89': 'تهران (پلاک ملی)',
-  '90': 'تهران', '91': 'تهران', '92': 'تهران',
+  '11':'البرز','12':'تهران (غرب)','13':'تهران (شرق)','14':'تهران (جنوب)',
+  '15':'تهران (شمال)','16':'تهران (مرکز)','17':'تهران','18':'تهران','19':'تهران',
+  '20':'تبریز','21':'اردبیل','22':'اردبیل','23':'اردبیل',
+  '24':'اردبیل','25':'زنجان','26':'زنجان','27':'گیلان',
+  '28':'گیلان','29':'مازندران','30':'مازندران','31':'مازندران',
+  '32':'گلستان','33':'گلستان','34':'خراسان رضوی','35':'خراسان رضوی',
+  '36':'خراسان جنوبی','37':'خراسان شمالی','38':'سمنان','39':'سمنان',
+  '40':'اصفهان','41':'اصفهان','42':'اصفهان','43':'اصفهان',
+  '44':'یزد','45':'یزد','46':'کرمان','47':'کرمان',
+  '48':'فارس','49':'فارس','50':'فارس','51':'بوشهر',
+  '52':'بوشهر','53':'هرمزگان','54':'هرمزگان','55':'خوزستان',
+  '56':'خوزستان','57':'خوزستان','58':'لرستان','59':'لرستان',
+  '60':'کرمانشاه','61':'کرمانشاه','62':'همدان','63':'همدان',
+  '64':'کردستان','65':'کردستان','66':'ایلام','67':'ایلام',
+  '68':'مرکزی','69':'مرکزی','70':'قم','71':'قم',
+  '72':'قزوین','73':'قزوین','74':'چهارمحال و بختیاری','75':'چهارمحال و بختیاری',
+  '76':'کهگیلویه و بویراحمد','77':'کهگیلویه و بویراحمد','78':'سیستان و بلوچستان','79':'سیستان و بلوچستان',
+  '80':'سیستان و بلوچستان','81':'سیستان و بلوچستان','82':'تهران','83':'تهران',
+  '84':'تهران','85':'تهران','86':'تهران','87':'تهران','88':'تهران','89':'تهران',
+  '90':'تهران','91':'تهران','92':'تهران','93':'تهران','94':'تهران','95':'تهران',
 };
-
-const PERSIAN_LETTERS = 'ابپتثجچحخدذرزژسشصضطظعغفقکگلمنوهی';
-const PLATE_TYPES = [
-  { name: 'شخصی', filter: (prov) => true },
-  { name: 'دولتی', prefix: 'الف', filter: () => false },
-  { name: 'پلیس', prefix: '۱۱۰', filter: () => false },
-  { name: 'ارتش', prefix: 'ش', filter: () => false },
-  { name: 'سپاه', prefix: 'ث', filter: () => false },
-  { name: 'آژانس (تاکسی)', prefix: 'ع', filter: () => false },
-];
 
 function renderPlate(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>کد استان (۲ رقم):</label>
-      <input type="text" id="plate-prov" placeholder="مثلاً ۱۱" maxlength="2" style="direction:ltr;text-align:center;width:80px">
+      <input type="text" id="plate-prov" placeholder="مثلاً 11" maxlength="2" style="direction:ltr;text-align:center;width:80px">
     </div>
     <div class="input-group">
       <label>سه حرف پلاک:</label>
-      <input type="text" id="plate-letters" placeholder="مثلاً الف‌ب‌پ" maxlength="3" style="text-align:center" dir="rtl">
+      <input type="text" id="plate-letters" placeholder="مثلاً الفبپ" maxlength="3" style="text-align:center" dir="rtl">
     </div>
     <div class="input-group" style="display:flex;gap:8px;align-items:center;justify-content:center">
-      <input type="text" id="plate-d1d2" placeholder="۱۲" maxlength="2" style="direction:ltr;text-align:center;width:60px" dir="ltr">
+      <input type="text" id="plate-d1d2" placeholder="12" maxlength="2" style="direction:ltr;text-align:center;width:60px" dir="ltr">
       <span style="font-size:20px">|</span>
-      <input type="text" id="plate-d3d4d5" placeholder="۳۴۵" maxlength="3" style="direction:ltr;text-align:center;width:80px" dir="ltr">
+      <input type="text" id="plate-d3d4d5" placeholder="345" maxlength="3" style="direction:ltr;text-align:center;width:80px" dir="ltr">
     </div>
-    <button class="btn" id="plate-check" style="margin:8px 0">بررسی</button>
-    <div class="result" id="plate-result"></div>
+    <button class="btn btn-primary" id="plate-check" style="width:100%;margin-top:8px">بررسی</button>
+    <div id="plate-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#plate-check').addEventListener('click', () => {
@@ -5675,181 +5702,121 @@ function renderPlate(container) {
     const d12 = container.querySelector('#plate-d1d2').value.replace(/\s/g, '');
     const d345 = container.querySelector('#plate-d3d4d5').value.replace(/\s/g, '');
 
-    if (!prov || prov.length !== 2) {
-      showToast('کد استان را وارد کنید (۲ رقم)', 'warning');
-      return;
-    }
+    if (!prov || prov.length !== 2) { showToast('کد استان را وارد کنید (۲ رقم)'); return; }
 
     const province = PLATE_PROVINCES[prov] || 'نامشخص';
-
-    // Determine plate type
     let plateType = 'شخصی';
-    const iranPlate = `${prov} ${letters} ${d12} | ${d345}`;
+    if (letters === 'الف') plateType = 'دولتی';
+    else if (letters === 'ث') plateType = 'سپاه';
+    else if (letters === 'ع') plateType = 'تاکسی';
+    else if (letters === 'ش') plateType = 'ارتش';
+    else if (letters === 'ف') plateType = 'ستاد کل';
+    else if (letters === 'ه') plateType = 'نیروی انتظامی';
 
-    // Check special plates
-    if (['الف', 'ث', 'ع', 'ش'].some(p => letters.includes(p))) {
-      if (letters === 'الف') plateType = 'دولتی';
-      else if (letters === 'ث') plateType = 'سپاه';
-      else if (letters === 'ع') plateType = 'تاکسی';
-      else if (letters === 'ش') plateType = 'ارتش';
-    }
-
-    // New plate format check (national plates)
     const isNewFormat = d12.length === 2 && d345.length === 3;
+    const plateDisplay = `${prov} ${letters} ${d12} | ${d345}`;
 
-    container.querySelector('#plate-result').innerHTML = `
+    const resultBox = container.querySelector('#plate-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.2">
-        <div style="font-size:28px;font-weight:bold;letter-spacing:6px;direction:ltr;background:#1a1a2e;padding:16px;border-radius:12px;margin:12px 0;font-family:monospace">
-          ${prov} ${letters} ${d12} | ${d345}
-        </div>
+        <div style="font-size:28px;font-weight:bold;letter-spacing:6px;direction:ltr;background:var(--glass2);padding:16px;border-radius:12px;margin:12px 0;font-family:monospace">🚗 ${plateDisplay}</div>
         <div>استان: <strong>${province}</strong></div>
         <div>نوع پلاک: <strong>${plateType}</strong></div>
-        <div style="font-size:13px;color:#aaa">فرمت: ${isNewFormat ? 'جدید (ملی)' : 'قدیم'}</div>
+        <div style="font-size:13px;color:var(--text2)">فرمت: ${isNewFormat ? 'جدید (ملی)' : 'قدیم'}</div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── info-cardvalidator ─── */
-const CARD_BINS = {
-  '603799': 'بانک ملی', '589210': 'بانک سپه', '627648': 'بانک توسعه صادرات',
-  '627961': 'بانک صنعت و معدن', '603770': 'بانک کشاورزی', '628023': 'بانک مسکن',
-  '627760': 'بانک پست بانک', '502908': 'بانک توسعه تعاون', '627412': 'بانک اقتصاد نوین',
-  '622106': 'بانک پارسیان', '502229': 'بانک پاسارگاد', '627488': 'بانک کارآفرین',
-  '621986': 'بانک سامان', '639346': 'بانک سینا', '639607': 'بانک سرمایه',
-  '636214': 'بانک آینده', '504706': 'بانک شهر', '502806': 'بانک دی',
-  '606373': 'بانک قرض‌الحسنه مهر ایران', '628157': 'بانک انصار',
-};
-
-function luhnCheck(num) {
-  let sum = 0;
-  let alt = false;
-  for (let i = num.length - 1; i >= 0; i--) {
-    let n = parseInt(num[i], 10);
-    if (alt) { n *= 2; if (n > 9) n -= 9; }
-    sum += n;
-    alt = !alt;
-  }
-  return sum % 10 === 0;
-}
-
 function renderCardValidator(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>شماره کارت (۱۶ رقم):</label>
-      <input type="text" id="card-input" placeholder="xxxx xxxx xxxx xxxx" maxlength="19" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:2px">
+      <input type="text" id="card-input" placeholder="xxxx-xxxx-xxxx-xxxx" maxlength="19" style="direction:ltr;text-align:center;font-size:18px;letter-spacing:2px">
     </div>
-    <button class="btn" id="card-check" style="margin:8px 0">بررسی</button>
-    <div class="result" id="card-result"></div>
+    <button class="btn btn-primary" id="card-check" style="width:100%;margin-top:8px">بررسی</button>
+    <div id="card-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#card-check').addEventListener('click', () => {
-    const raw = container.querySelector('#card-input').value.replace(/\s|\D/g, '');
-    if (raw.length !== 16 || !/^\d{16}$/.test(raw)) {
-      showToast('شماره کارت باید ۱۶ رقم باشد', 'warning');
-      return;
-    }
+    const raw = container.querySelector('#card-input').value.replace(/[\s-]/g, '');
+    if (raw.length !== 16 || !/^\d{16}$/.test(raw)) { showToast('شماره کارت باید ۱۶ رقم باشد'); return; }
 
     const valid = luhnCheck(raw);
     const bin = raw.substring(0, 6);
     const bankName = CARD_BINS[bin] || 'نامشخص';
     const formatted = raw.match(/.{1,4}/g).join(' ');
 
-    container.querySelector('#card-result').innerHTML = `
+    const resultBox = container.querySelector('#card-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.2">
-        <div style="font-size:20px;letter-spacing:4px;direction:ltr;font-family:monospace;background:#1a1a2e;padding:14px;border-radius:12px;margin:12px 0">💳 ${formatted}</div>
+        <div style="font-size:20px;letter-spacing:4px;direction:ltr;font-family:monospace;background:var(--glass2);padding:14px;border-radius:12px;margin:12px 0">💳 ${formatted}</div>
         <div>بانک: <strong>${bankName}</strong></div>
         <div>BIN: <strong dir="ltr">${bin}</strong></div>
-        <div style="font-size:18px;color:${valid ? '#2ecc71' : '#e74c3c'}">
-          ${valid ? '✅ شماره کارت معتبر است' : '❌ شماره کارت نامعتبر است'}
-        </div>
-        <div style="font-size:13px;color:#aaa">الگوریتم: Luhn</div>
+        <div style="font-size:18px;color:${valid ? '#2ecc71' : '#e74c3c'}">${valid ? '✅ شماره کارت معتبر است' : '❌ شماره کارت نامعتبر است'}</div>
+        <div style="font-size:13px;color:var(--text2)">الگوریتم: Luhn</div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
 /* ─── info-banklist ─── */
 const IRANIAN_BANKS = [
-  { name: 'بانک مرکزی', code: '010', sheba: 'IR010' },
-  { name: 'بانک صنعت و معدن', code: '011', sheba: 'IR011' },
-  { name: 'بانک توسعه صادرات', code: '012', sheba: 'IR012' },
+  { name: 'بانک ملی', code: '017', sheba: 'IR017' },
+  { name: 'بانک صادرات', code: '019', sheba: 'IR019' },
+  { name: 'بانک تجارت', code: '018', sheba: 'IR018' },
+  { name: 'بانک ملت', code: '012', sheba: 'IR012' },
+  { name: 'بانک سپه', code: '015', sheba: 'IR015' },
   { name: 'بانک کشاورزی', code: '013', sheba: 'IR013' },
   { name: 'بانک مسکن', code: '014', sheba: 'IR014' },
-  { name: 'بانک سپه', code: '015', sheba: 'IR015' },
-  { name: 'بانک توسعهتعاون', code: '016', sheba: 'IR016' },
-  { name: 'بانک ملی', code: '017', sheba: 'IR017' },
-  { name: 'بانک اقتصاد نوین', code: '018', sheba: 'IR018' },
+  { name: 'بانک پاسارگاد', code: '022', sheba: 'IR022' },
+  { name: 'بانک سامان', code: '021', sheba: 'IR021' },
   { name: 'بانک پارسیان', code: '019', sheba: 'IR019' },
   { name: 'بانک کارآفرین', code: '020', sheba: 'IR020' },
-  { name: 'بانک سامان', code: '021', sheba: 'IR021' },
-  { name: 'بانک پاسارگاد', code: '022', sheba: 'IR022' },
+  { name: 'بانک اقتصاد نوین', code: '018', sheba: 'IR018' },
   { name: 'بانک سینا', code: '023', sheba: 'IR023' },
-  { name: 'بانک خاورمیانه', code: '024', sheba: 'IR024' },
   { name: 'بانک شهر', code: '025', sheba: 'IR025' },
   { name: 'بانک آینده', code: '026', sheba: 'IR026' },
   { name: 'بانک دی', code: '027', sheba: 'IR027' },
-  { name: 'بانک ایران‌زمین', code: '028', sheba: 'IR028' },
+  { name: 'بانک ایرانزمین', code: '028', sheba: 'IR028' },
   { name: 'بانک رفاه', code: '029', sheba: 'IR029' },
-  { name: 'بانک حکمت ایرانیان', code: '030', sheba: 'IR030' },
   { name: 'بانک گردشگری', code: '031', sheba: 'IR031' },
   { name: 'بانک مهر ایران', code: '032', sheba: 'IR032' },
-  { name: 'بانک قرض‌الحسنه رسالت', code: '033', sheba: 'IR033' },
-  { name: 'بانک قرض‌الحسنه مهر', code: '034', sheba: 'IR034' },
-  { name: 'بانک مشترک ایران-ونزوئلا', code: '035', sheba: 'IR035' },
-  { name: 'موسسه اعتباری نور', code: '051', sheba: 'IR051' },
-  { name: 'موسسه اعتباری کوثر', code: '052', sheba: 'IR052' },
-  { name: 'موسسه اعتباری ملل', code: '053', sheba: 'IR053' },
-  { name: 'موسسه اعتباری عسکریه', code: '054', sheba: 'IR054' },
-  { name: 'بانک انصار', code: '055', sheba: 'IR055' },
-  { name: 'بانک قوامین', code: '056', sheba: 'IR056' },
-  { name: 'بانک مهر اقتصاد', code: '058', sheba: 'IR058' },
+  { name: 'بانک قرضالحسنه رسالت', code: '033', sheba: 'IR033' },
+  { name: 'پستبانک', code: '016', sheba: 'IR016' },
 ];
 
 function renderBankList(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>جستجوی بانک:</label>
-      <input type="text" id="bank-search" placeholder="نام بانک یا کد..." style="text-align:center" dir="rtl">
+      <input type="text" id="bank-search" placeholder="نام بانک..." style="direction:rtl">
     </div>
-    <div id="bank-list-container" style="max-height:350px;overflow-y:auto;margin-top:8px"></div>
+    <div id="bank-list" style="max-height:400px;overflow-y:auto"></div>
   `;
 
-  const listEl = container.querySelector('#bank-list-container');
-
-  function renderList(filter = '') {
-    const filtered = IRANIAN_BANKS.filter(b =>
-      !filter || b.name.includes(filter) || b.code.includes(filter)
-    );
+  function renderList(query) {
+    const filtered = query ? IRANIAN_BANKS.filter(b => b.name.includes(query)) : IRANIAN_BANKS;
+    const listEl = container.querySelector('#bank-list');
     listEl.innerHTML = filtered.map(b => `
-      <div class="bank-item" data-sheba="${b.sheba}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin:4px 0;background:#1a1a2e;border-radius:8px;cursor:pointer;transition:background 0.2s">
-        <span style="font-weight:bold">${b.name}</span>
-        <div style="display:flex;gap:12px;align-items:center">
-          <span style="color:#aaa;font-size:13px">کد: ${b.code}</span>
-          <span style="color:#3498db;font-size:13px;direction:ltr" dir="ltr">${b.sheba}...</span>
-          <span style="font-size:11px;color:#666">📋</span>
-        </div>
+      <div class="bank-item" data-sheba="${b.sheba}" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s">
+        <span style="font-weight:700">${b.name}</span>
+        <span style="font-size:.8rem;color:var(--text2);direction:ltr">${b.sheba}</span>
       </div>
-    `).join('') || '<div style="text-align:center;color:#aaa;padding:16px">نتیجه‌ای یافت نشد</div>';
+    `).join('') || '<div style="text-align:center;color:var(--text2);padding:16px">بانکی یافت نشد</div>';
 
     listEl.querySelectorAll('.bank-item').forEach(el => {
       el.addEventListener('click', () => {
-        const sheba = el.dataset.sheba;
-        navigator.clipboard.writeText(sheba).then(() => {
-          showToast(`پیشوند شبا کپی شد: ${sheba}`, 'success');
-        }).catch(() => {
-          showToast(sheba, 'info');
-        });
+        navigator.clipboard.writeText(el.dataset.sheba).then(() => showToast('شبا کپی شد: ' + el.dataset.sheba)).catch(() => showToast(el.dataset.sheba));
       });
-      el.addEventListener('mouseenter', () => el.style.background = '#252545');
-      el.addEventListener('mouseleave', () => el.style.background = '#1a1a2e');
     });
   }
 
-  renderList();
-  container.querySelector('#bank-search').addEventListener('input', (e) => {
-    renderList(e.target.value.trim());
-  });
+  renderList('');
+  container.querySelector('#bank-search').addEventListener('input', (e) => renderList(e.target.value));
 }
 
 /* ─── info-eidi ─── */
@@ -5857,15 +5824,15 @@ function renderEidi(container) {
   container.innerHTML = `
     <div class="input-group">
       <label>آخرین حقوق ماهیانه (تومان):</label>
-      <input type="text" id="eidi-salary" placeholder="مثال: ۱۰۰۰۰۰۰۰" style="direction:ltr;text-align:center;font-size:16px">
+      <input type="text" id="eidi-salary" placeholder="مثال: 10000000" style="direction:ltr;text-align:center;font-size:16px">
     </div>
     <div class="input-group">
-      <label>ماه‌های کارکرد در سال:</label>
-      <input type="number" id="eidi-months" placeholder="۱۲" min="1" max="12" value="12" style="direction:ltr;text-align:center;width:80px">
+      <label>ماههای کارکرد در سال:</label>
+      <input type="number" id="eidi-months" placeholder="12" min="1" max="12" value="12" style="direction:ltr;text-align:center;width:80px">
     </div>
-    <button class="btn" id="eidi-calc" style="margin:8px 0">محاسبه</button>
-    <div class="result" id="eidi-result"></div>
-    <div style="font-size:11px;color:#666;margin-top:8px;text-align:center">بر اساس قانون کار جمهوری اسلامی ایران (۱۴۰۳/۱۴۰۴)</div>
+    <button class="btn btn-primary" id="eidi-calc" style="width:100%;margin-top:8px">محاسبه</button>
+    <div id="eidi-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
+    <div style="font-size:11px;color:var(--text2);margin-top:8px;text-align:center">بر اساس قانون کار جمهوری اسلامی ایران</div>
   `;
 
   container.querySelector('#eidi-calc').addEventListener('click', () => {
@@ -5873,40 +5840,31 @@ function renderEidi(container) {
     const months = parseInt(container.querySelector('#eidi-months').value, 10);
     const salary = parseInt(salaryStr, 10);
 
-    if (!salary || salary <= 0) {
-      showToast('لطفاً حقوق ماهیانه را وارد کنید', 'warning');
-      return;
-    }
-    if (!months || months < 1 || months > 12) {
-      showToast('ماه‌های کارکرد باید بین ۱ تا ۱۲ باشد', 'warning');
-      return;
-    }
+    if (!salary || salary <= 0) { showToast('لطفاً حقوق ماهیانه را وارد کنید'); return; }
+    if (!months || months < 1 || months > 12) { showToast('ماههای کارکرد باید بین ۱ تا ۱۲ باشد'); return; }
 
     const dailySalary = salary / 30;
-    const eidiByMonth = salary * 2; // 2 months salary
-    const eidiByDay = dailySalary * 30; // 30 days salary
-    const eidi = Math.min(eidiByMonth, eidiByDay); // whichever is less
+    const eidiByMonth = salary * 2;
+    const eidiByDay = dailySalary * 30;
+    const eidi = Math.min(eidiByMonth, eidiByDay);
     const proratedEidi = Math.round((eidi / 12) * months);
-
-    // سنوات: 1 month salary per full year (prorated)
     const seniority = Math.round((salary / 12) * months);
 
     const fmt = (n) => n.toLocaleString('fa-IR');
-
-    container.querySelector('#eidi-result').innerHTML = `
+    const resultBox = container.querySelector('#eidi-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.4">
         <div style="font-size:18px">🎁 عیدی</div>
-        <div>مبلغ کامل عیدی: <strong>${fmt(eidi)} تومان</strong></div>
+        <div>مبلغ کامل: <strong>${fmt(eidi)} تومان</strong></div>
         <div>عیدی (${months} ماه): <strong style="color:#2ecc71;font-size:18px">${fmt(proratedEidi)} تومان</strong></div>
-        <div style="font-size:12px;color:#aaa">(کمتر از ۲ ماه حقوق یا ۳۰ روز حقوق)</div>
-        <hr style="border:0;border-top:1px solid #333;margin:12px 0">
+        <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
         <div style="font-size:18px">💰 سنوات</div>
-        <div> سنوات (${months} ماه): <strong style="color:#2ecc71;font-size:18px">${fmt(seniority)} تومان</strong></div>
-        <div style="font-size:12px;color:#aaa">(یک ماه حقوق به ازای هر سال - ماهشمار)</div>
-        <hr style="border:0;border-top:1px solid #333;margin:12px 0">
+        <div>سنوات (${months} ماه): <strong style="color:#2ecc71;font-size:18px">${fmt(seniority)} تومان</strong></div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
         <div style="font-size:16px">📊 جمع کل: <strong style="color:#f39c12;font-size:20px">${fmt(proratedEidi + seniority)} تومان</strong></div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
@@ -5914,64 +5872,54 @@ function renderEidi(container) {
 function renderFuelQuota(container) {
   container.innerHTML = `
     <div class="input-group">
-      <label>تعداد اعضای خانواده:</label>
-      <input type="number" id="fuel-members" placeholder="مثال: ۴" min="1" max="20" value="1" style="direction:ltr;text-align:center;width:80px">
-    </div>
-    <div class="input-group">
       <label>نوع وسیله نقلیه:</label>
-      <select id="fuel-type" style="width:100%;padding:8px;border-radius:8px;background:#1a1a2e;color:#fff;border:1px solid #333;text-align:center" dir="rtl">
-        <option value="sedan">سواری (بنزینی)</option>
+      <select id="fuel-type">
+        <option value="sedan">سواری</option>
         <option value="motorcycle">موتورسیکلت</option>
-        <option value="van">ون / مینی‌بوس</option>
+        <option value="van">ون / مینیبوس</option>
       </select>
     </div>
-    <button class="btn" id="fuel-calc" style="margin:8px 0">محاسبه</button>
-    <div class="result" id="fuel-result"></div>
-    <div style="font-size:11px;color:#666;margin-top:8px;text-align:center">بر اساس طرح سهمیه‌بندی بنزین ۱۴۰۳/۱۴۰۴</div>
+    <div class="input-group">
+      <label>تعداد اعضای خانواده:</label>
+      <input type="number" id="fuel-members" placeholder="مثال: 4" min="1" max="10" value="4">
+    </div>
+    <button class="btn btn-primary" id="fuel-calc" style="width:100%;margin-top:8px">محاسبه</button>
+    <div id="fuel-result" style="display:none;margin-top:12px;padding:14px;background:var(--glass);border:1px solid var(--border);border-radius:var(--radius)"></div>
   `;
 
   container.querySelector('#fuel-calc').addEventListener('click', () => {
-    const members = parseInt(container.querySelector('#fuel-members').value, 10);
     const vehicleType = container.querySelector('#fuel-type').value;
+    const members = parseInt(container.querySelector('#fuel-members').value);
 
-    if (!members || members < 1) {
-      showToast('تعداد اعضای خانواده را وارد کنید', 'warning');
-      return;
-    }
+    if (!members || members < 1) { showToast('تعداد اعضای خانواده را وارد کنید'); return; }
 
-    // Base quota per vehicle type (liters/month)
     const vehicleQuotas = {
       sedan: { base: 60, label: 'سواری' },
       motorcycle: { base: 25, label: 'موتورسیکلت' },
-      van: { base: 100, label: 'ون / مینی‌بوس' },
+      van: { base: 100, label: 'ون / مینیبوس' },
     };
-
     const vehicle = vehicleQuotas[vehicleType];
-    const familyBonus = Math.min(members - 1, 4) * 10; // 10L per extra member, max 4 extra
-    const baseQuota = vehicle.base;
-    const familyQuota = familyBonus;
-    const totalQuota = baseQuota + familyQuota;
+    const familyBonus = Math.min(members - 1, 4) * 10;
+    const totalQuota = vehicle.base + familyBonus;
+    const subsidizedPrice = 1500;
+    const freePrice = 3000;
 
-    const subsidizedPrice = 1500; // تومان
-    const freePrice = 3000; // تومان
     const fmt = (n) => n.toLocaleString('fa-IR');
-
-    container.querySelector('#fuel-result').innerHTML = `
+    const resultBox = container.querySelector('#fuel-result');
+    resultBox.innerHTML = `
       <div style="text-align:center;line-height:2.4">
         <div style="font-size:18px">⛽ ${vehicle.label}</div>
-        <div>سهمیه پایه: <strong>${fmt(baseQuota)} لیتر/ماه</strong></div>
-        <div>سهمیه خانواده (${members} نفر): <strong>${fmt(familyQuota)} لیتر/ماه</strong></div>
-        <hr style="border:0;border-top:1px solid #333;margin:12px 0">
+        <div>سهمیه پایه: <strong>${fmt(vehicle.base)} لیتر/ماه</strong></div>
+        <div>سهمیه خانواده (${members} نفر): <strong>${fmt(familyBonus)} لیتر/ماه</strong></div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
         <div style="font-size:20px">جمع سهمیه: <strong style="color:#2ecc71;font-size:24px">${fmt(totalQuota)} لیتر/ماه</strong></div>
-        <hr style="border:0;border-top:1px solid #333;margin:12px 0">
-        <div style="font-size:16px">💰 قیمت‌ها:</div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
         <div>سهمیه‌ای: <strong>${fmt(subsidizedPrice)} تومان/لیتر</strong></div>
         <div>آزاد: <strong>${fmt(freePrice)} تومان/لیتر</strong></div>
-        <div style="margin-top:8px;font-size:13px;color:#aaa">
-          هزینه ماهانه (سهمیه‌ای): <strong style="color:#f39c12">${fmt(totalQuota * subsidizedPrice)} تومان</strong>
-        </div>
+        <div style="margin-top:8px;font-size:13px;color:var(--text2)">هزینه ماهانه (سهمیه‌ای): <strong style="color:#f39c12">${fmt(totalQuota * subsidizedPrice)} تومان</strong></div>
       </div>
     `;
+    resultBox.style.display = 'block';
   });
 }
 
@@ -5979,19 +5927,27 @@ function renderFuelQuota(container) {
 const iranInfoTools = [
   { id: 'info-postal', name: 'کد پستی', icon: '📮', category: 'iran-info', keywords: ['کد پستی', 'postal', 'استان', 'شهر'], desc: 'بررسی و شناسایی استان از کد پستی', render: renderPostal },
   { id: 'info-sheba', name: 'شبا (IBAN)', icon: '🏦', category: 'iran-info', keywords: ['شبا', 'IBAN', 'sheba', 'بانک'], desc: 'اعتبارسنجی شماره شبا و شناسایی بانک', render: renderSheba },
-  { id: 'info-national', name: 'کد ملی', icon: '🪪', category: 'iran-info', keywords: ['کد ملی', 'national', 'شناسه'], desc: 'اعتبارسنجی کد ملی با الگوریتم چک‌سام', render: renderNational },
+  { id: 'info-national', name: 'کد ملی', icon: '🪪', category: 'iran-info', keywords: ['کد ملی', 'national', 'شناسه'], desc: 'اعتبارسنجی کد ملی با الگوریتم چکسام', render: renderNational },
   { id: 'info-plate', name: 'پلاک ماشین', icon: '🚗', category: 'iran-info', keywords: ['پلاک', 'ماشین', 'plate', 'خودرو'], desc: 'شناسایی استان و نوع پلاک خودرو', render: renderPlate },
   { id: 'info-cardvalidator', name: 'اعتبارسنجی کارت بانکی', icon: '💳', category: 'iran-info', keywords: ['کارت', 'بانکی', 'card', 'اعتبارسنجی', 'luhn'], desc: 'اعتبارسنجی شماره کارت بانکی و شناسایی بانک', render: renderCardValidator },
-  { id: 'info-banklist', name: 'لیست بانک‌ها و شبا', icon: '🏦', category: 'iran-info', keywords: ['بانک', 'شبا', 'bank', 'لیست'], desc: 'لیست کامل بانک‌ها با پیشوند شبا', render: renderBankList },
-  { id: 'info-eidi', name: 'محاسبه عیدی و سنوات', icon: '🎁', category: 'iran-info', keywords: ['عیدی', 'سنوات', 'eidi', 'حقوق'], desc: 'محاسبه عیدی و سنوات بر اساس قانون کار', render: renderEidi },
+  { id: 'info-banklist', name: 'لیست بانکها', icon: '🏦', category: 'iran-info', keywords: ['بانک', 'شبا', 'bank', 'لیست'], desc: 'لیست بانکها با پیشوند شبا', render: renderBankList },
+  { id: 'info-eidi', name: 'عیدی و سنوات', icon: '🎁', category: 'iran-info', keywords: ['عیدی', 'سنوات', 'eidi', 'حقوق'], desc: 'محاسبه عیدی و سنوات بر اساس قانون کار', render: renderEidi },
   { id: 'info-fuelquota', name: 'سهمیه بنزین', icon: '⛽', category: 'iran-info', keywords: ['بنزین', 'سهمیه', 'fuel', 'سوخت'], desc: 'محاسبه سهمیه بنزین خانواده', render: renderFuelQuota },
 ];
 
 registerTools(iranInfoTools);
 
 
+registerTools(iranInfoTools);
+
+
 
 // ═══ iran-market ═══
+
+// ═══ iran-market ═══
+// ═══════════════════════════════════════════
+// بازار ایران — Iran Market (بازنویسی کامل)
+// ═══════════════════════════════════════════
 
 const marketTools = [
   {
@@ -6000,7 +5956,7 @@ const marketTools = [
     icon: '🇮🇷',
     category: 'iran-market',
     keywords: ['بازار', 'قیمت', 'دلار', 'یورو', 'سکه', 'طلا', 'بیتکوین', 'ارز', 'market', 'price'],
-    desc: 'نمایش قیمت لحظه‌ای ارز، سکه و ارز دیجیتال در بازار ایران',
+    desc: 'نمایش قیمت لحظه‌ای ارز، سکه و ارز دیجیتال',
     render(container) {
       const CURRENCIES = [
         { key: 'usd', label: 'دلار', icon: '💵' },
@@ -6016,25 +5972,20 @@ const marketTools = [
       ];
 
       let prices = {};
-      let autoRefresh = false;
-      let refreshTimer = null;
-
-      CURRENCIES.forEach(c => {
-        prices[c.key] = { price: '---', change: '---', changePercent: '---' };
-      });
+      CURRENCIES.forEach(c => { prices[c.key] = { price: '---', change: '---', changePercent: '---' }; });
 
       container.innerHTML = `
-        <div class="input-group" style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-          <button class="btn" id="ir-refresh">🔄 بروزرسانی</button>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <button class="btn btn-primary" id="ir-refresh">🔄 بروزرسانی</button>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.85rem">
             <input type="checkbox" id="ir-auto" />
-            <span>بروزرسانی خودکار</span>
+            <span>خودکار</span>
           </label>
-          <span id="ir-status" style="font-size:12px;color:#888;"></span>
+          <span id="ir-status" style="font-size:12px;color:var(--text2)"></span>
         </div>
-        <div id="ir-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;"></div>
-        <div style="margin-top:10px;font-size:11px;color:#888;text-align:center;">
-          منبع: tgju.org / bonbast.com — در صورت عدم دسترسی، قیمت‌ها به‌صورت دستی قابل ورود هستند
+        <div id="ir-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px"></div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text2);text-align:center">
+          منبع: CoinGecko (رمزارز) — قیمت‌های ارز و سکه را میتوانید دستی وارد کنید
         </div>
       `;
 
@@ -6044,19 +5995,17 @@ const marketTools = [
       function renderGrid() {
         grid.innerHTML = CURRENCIES.map(c => {
           const d = prices[c.key];
-          const changeColor = d.change === '---' ? '#888' : (parseFloat(String(d.change).replace(/,/g, '')) >= 0 ? '#22c55e' : '#ef4444');
+          const changeColor = d.change === '---' ? 'var(--text2)' : (parseFloat(String(d.change).replace(/,/g, '')) >= 0 ? '#22c55e' : '#ef4444');
           return `
-            <div class="crypto-item" style="padding:12px;border-radius:10px;background:var(--card-bg, #1a1a2e);border:1px solid var(--border-color, #333);">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-size:20px;">${c.icon}</span>
-                <span style="font-weight:700;font-size:14px;">${c.label}</span>
+            <div style="padding:12px;border-radius:10px;background:var(--glass);border:1px solid var(--border)">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <span style="font-size:20px">${c.icon}</span>
+                <span style="font-weight:700;font-size:14px">${c.label}</span>
               </div>
-              <div style="font-size:22px;font-weight:700;direction:ltr;text-align:right;margin-bottom:4px;" id="ir-price-${c.key}">
-                ${d.price}
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px;direction:ltr;">
-                <span style="color:${changeColor};" id="ir-change-${c.key}">${d.change}</span>
-                <span style="color:${changeColor};" id="ir-pct-${c.key}">${d.changePercent}</span>
+              <div style="font-size:22px;font-weight:700;direction:ltr;text-align:right;margin-bottom:4px" id="ir-price-${c.key}">${d.price}</div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;direction:ltr">
+                <span style="color:${changeColor}" id="ir-change-${c.key}">${d.change}</span>
+                <span style="color:${changeColor}" id="ir-pct-${c.key}">${d.changePercent}</span>
               </div>
             </div>
           `;
@@ -6065,86 +6014,130 @@ const marketTools = [
 
       async function fetchPrices() {
         statusEl.textContent = '⏳ در حال دریافت...';
-        try {
-          // Try tgju.org via proxy
-          const resp = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.tgju.org/'), { signal: AbortSignal.timeout(8000) });
-          const html = await resp.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
+        let successCount = 0;
 
-          // Try to extract data from tgju tables
-          const rows = doc.querySelectorAll('.market-table tr, table tr');
-          let found = false;
-          rows.forEach(row => {
-            const cells = row.querySelectorAll('td, th');
-            if (cells.length >= 2) {
-              const text = cells[0]?.textContent?.trim() || '';
-              const val = cells[1]?.textContent?.trim() || '';
-              if (text.includes('دلار') && val) { prices.usd.price = val; found = true; }
-              if (text.includes('یورو') && val) { prices.eur.price = val; found = true; }
-              if (text.includes('پوند') && val) { prices.gbp.price = val; found = true; }
-              if (text.includes('درهم') && val) { prices.aed.price = val; found = true; }
-              if (text.includes('سکه تمام') && val) { prices.coin.price = val; found = true; }
-              if (text.includes('نیم سکه') && val) { prices['half-coin'].price = val; found = true; }
-              if (text.includes('ربع سکه') && val) { prices['quarter-coin'].price = val; found = true; }
-              if (text.includes('طلا') && text.includes('۱۸') && val) { prices.gold18.price = val; found = true; }
+        // Fetch crypto from CoinGecko (reliable API)
+        try {
+          const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true', { signal: AbortSignal.timeout(10000) });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.bitcoin) {
+              prices.btc.price = '$' + (data.bitcoin.usd || 0).toLocaleString();
+              prices.btc.changePercent = (data.bitcoin.usd_24h_change?.toFixed(2) || '---') + '%';
+              prices.btc.change = data.bitcoin.usd_24h_change >= 0 ? '+' : '';
+              successCount++;
+            }
+            if (data.ethereum) {
+              prices.eth.price = '$' + (data.ethereum.usd || 0).toLocaleString();
+              prices.eth.changePercent = (data.ethereum.usd_24h_change?.toFixed(2) || '---') + '%';
+              prices.eth.change = data.ethereum.usd_24h_change >= 0 ? '+' : '';
+              successCount++;
+            }
+          }
+        } catch (e) { console.log('CoinGecko error:', e); }
+
+        // Try to fetch from a free exchange rate API for USD/IRR
+        try {
+          const resp = await fetch('https://api.exchangerate-api.com/v4/latest/USD', { signal: AbortSignal.timeout(10000) });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data.rates && data.rates.IRR) {
+              const irrRate = Math.round(data.rates.IRR);
+              prices.usd.price = irrRate.toLocaleString('fa-IR') + ' ریال';
+              successCount++;
+            }
+            if (data.rates && data.rates.EUR) {
+              prices.eur.price = '€1 = ' + Math.round(data.rates.IRR / data.rates.EUR).toLocaleString('fa-IR') + ' ریال';
+              successCount++;
+            }
+          }
+        } catch (e) { console.log('Exchange rate error:', e); }
+
+        if (successCount > 0) {
+          statusEl.textContent = `✅ ${successCount} مورد بروزرسانی شد`;
+          statusEl.style.color = '#22c55e';
+        } else {
+          statusEl.textContent = '⚠️ خطا در دریافت — قیمتها را دستی وارد کنید';
+          statusEl.style.color = '#f39c12';
+        }
+
+        // Load saved prices from localStorage
+        try {
+          const saved = JSON.parse(localStorage.getItem('tp_market_prices') || '{}');
+          CURRENCIES.forEach(c => {
+            if (saved[c.key] && prices[c.key].price === '---') {
+              prices[c.key] = saved[c.key];
             }
           });
+        } catch {}
 
-          if (!found) throw new Error('Could not parse');
-
-          // Fetch crypto from CoinGecko
-          try {
-            const cryptoResp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true');
-            const cryptoData = await cryptoResp.json();
-            if (cryptoData.bitcoin) {
-              prices.btc.price = '$' + cryptoData.bitcoin.usd?.toLocaleString() || '---';
-              prices.btc.changePercent = (cryptoData.bitcoin.usd_24h_change?.toFixed(2) || '---') + '%';
-            }
-            if (cryptoData.ethereum) {
-              prices.eth.price = '$' + cryptoData.ethereum.usd?.toLocaleString() || '---';
-              prices.eth.changePercent = (cryptoData.ethereum.usd_24h_change?.toFixed(2) || '---') + '%';
-            }
-          } catch {}
-
-          statusEl.textContent = '✅ بروزرسانی شد — ' + new Date().toLocaleTimeString('fa-IR');
-        } catch {
-          // Fallback: show manual input option
-          statusEl.textContent = '⚠️ خطا در دریافت — قیمت‌ها را دستی وارد کنید یا دوباره تلاش کنید';
-          // Try bonbast as fallback
-          try {
-            const resp2 = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://bonbast.com/'), { signal: AbortSignal.timeout(8000) });
-            const html2 = await resp2.text();
-            // Simple extraction attempt
-            const match = html2.match(/(\d{2,3},\d{3})\s*تومان/);
-            if (match) {
-              prices.usd.price = match[1] + ' تومان';
-              statusEl.textContent = '✅ از bonbast — ' + new Date().toLocaleTimeString('fa-IR');
-            }
-          } catch {}
-        }
         renderGrid();
       }
 
+      // Save prices to localStorage
+      function savePrices() {
+        try { localStorage.setItem('tp_market_prices', JSON.stringify(prices)); } catch {}
+      }
+
+      // Manual price edit
+      function editPrice(key) {
+        const current = prices[key].price === '---' ? '' : prices[key].price;
+        const val = prompt(`قیمت ${CURRENCIES.find(c => c.key === key)?.label || key} را وارد کنید:`, current);
+        if (val !== null && val.trim()) {
+          prices[key].price = val.trim();
+          savePrices();
+          renderGrid();
+        }
+      }
+
+      // Make editPrice globally accessible
+      window.__editMarketPrice = editPrice;
+
+      // Re-render with click handlers
+      function renderGridWithHandlers() {
+        renderGrid();
+        CURRENCIES.forEach(c => {
+          const el = container.querySelector(`#ir-price-${c.key}`);
+          if (el) {
+            el.style.cursor = 'pointer';
+            el.title = 'کلیک برای ویرایش دستی';
+            el.addEventListener('click', () => editPrice(c.key));
+          }
+        });
+      }
+
+      // Override renderGrid to include handlers
+      const origRenderGrid = renderGrid;
+      renderGrid = function() {
+        origRenderGrid();
+        CURRENCIES.forEach(c => {
+          const el = container.querySelector(`#ir-price-${c.key}`);
+          if (el) {
+            el.style.cursor = 'pointer';
+            el.title = 'کلیک برای ویرایش دستی';
+            el.addEventListener('click', () => editPrice(c.key));
+          }
+        });
+      };
+
       container.querySelector('#ir-refresh').addEventListener('click', fetchPrices);
       container.querySelector('#ir-auto').addEventListener('change', (e) => {
-        autoRefresh = e.target.checked;
-        if (autoRefresh) {
-          refreshTimer = setInterval(fetchPrices, 60000);
-          showToast('بروزرسانی خودکار فعال شد (هر ۶۰ ثانیه)');
+        if (e.target.checked) {
+          fetchPrices();
+          window._marketRefreshTimer = setInterval(fetchPrices, 60000);
         } else {
-          clearInterval(refreshTimer);
-          refreshTimer = null;
+          clearInterval(window._marketRefreshTimer);
         }
       });
 
-      renderGrid();
+      // Initial fetch
       fetchPrices();
     }
   }
 ];
 
 registerTools(marketTools);
+
 
 
 // ═══ new-tools ═══
