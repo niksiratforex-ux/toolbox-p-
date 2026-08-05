@@ -3217,7 +3217,7 @@ function renderSnake(c) {
     </div>
     <div class="snake-controls" style="max-width:200px;margin:10px auto">
       <div></div><button class="snake-btn" data-dir="up">▲</button><div></div>
-      <button class="snake-btn" data-dir="left">◀</button><button class="snake-btn" data-dir="down">▼</button><button class="snake-btn" data-dir="right">▶</button>
+      <button class="snake-btn" data-dir="right">▶</button><button class="snake-btn" data-dir="down">▼</button><button class="snake-btn" data-dir="left">◀</button>
     </div>
     <div style="text-align:center;margin-top:6px"><button class="btn btn-primary" id="snStart" style="font-size:.8rem;padding:8px 20px">شروع</button></div>`;
 
@@ -3457,12 +3457,16 @@ function render2048(c) {
     tileEls.push(tile);
   }
   c.querySelector('#g2048New').onclick = init;
-  // Keyboard - direct arrows, no RTL swap for game logic
+  // Keyboard - RTL swap needed for CSS grid layout
   document.addEventListener('keydown', function handler(e) {
     if (!c.isConnected) { document.removeEventListener('keydown', handler); return; }
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) {
       e.preventDefault();
       var d = e.key.replace('Arrow', '').toLowerCase();
+      if (isRTL()) {
+        if (d === 'left') d = 'right';
+        else if (d === 'right') d = 'left';
+      }
       move(d);
     }
   });
@@ -3471,7 +3475,9 @@ function render2048(c) {
   gridEl.addEventListener('touchstart', function(e) { tx = e.touches[0].clientX; ty = e.touches[0].clientY; });
   gridEl.addEventListener('touchend', function(e) {
     var dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
-    if (Math.abs(dx) > Math.abs(dy)) { move(dx > 0 ? 'right' : 'left'); } else { move(dy > 0 ? 'down' : 'up'); }
+    var leftDir = isRTL() ? 'right' : 'left';
+    var rightDir = isRTL() ? 'left' : 'right';
+    if (Math.abs(dx) > Math.abs(dy)) { move(dx > 0 ? rightDir : leftDir); } else { move(dy > 0 ? 'down' : 'up'); }
   });
   init();
 }
@@ -4506,13 +4512,13 @@ function renderBreakout(c) {
       if (!b.alive) continue;
       ctx.fillStyle = b.color;
       ctx.beginPath();
-      ctx.roundRect(b.x, b.y, b.w, b.h, 3);
+      ctx.fillRect(b.x, b.y, b.w, b.h);
       ctx.fill();
     }
     // paddle
     ctx.fillStyle = '#6c5ce7';
     ctx.beginPath();
-    ctx.roundRect(paddle.x, H - 30, paddle.w, PAD_H, 6);
+    ctx.fillRect(paddle.x, H - 30, paddle.w, PAD_H);
     ctx.fill();
     // ball
     ctx.fillStyle = '#fff';
@@ -4606,7 +4612,6 @@ function renderBreakout(c) {
     if (gameOver) return;
     if(e.key==="ArrowLeft") { paddle.x -= 20; if (paddle.x < 0) paddle.x = 0; if (started) draw(); e.preventDefault(); }
     if(e.key==="ArrowRight") { paddle.x += 20; if (paddle.x + paddle.w > W) paddle.x = W - paddle.w; if (started) draw(); e.preventDefault(); }
-    if (d === 'right') { paddle.x += 20; if (paddle.x + paddle.w > W) paddle.x = W - paddle.w; if (started) draw(); e.preventDefault(); }
     if (e.key === ' ' && !started) { started = true; c.querySelector('#boOverlay').style.display = 'none'; loop(); e.preventDefault(); }
   });
   c.innerHTML = `
