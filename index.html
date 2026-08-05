@@ -4514,6 +4514,23 @@ function renderBreakout(c) {
   var BALL_R = 6, PAD_W = 70, PAD_H = 12;
   var brickColors = ['#e94560','#f39c12','#2ecc71','#3498db','#9b59b6','#1abc9c'];
 
+  c.innerHTML = `
+    <div style="display:flex;justify-content:center;gap:16px;margin-bottom:8px">
+      <div style="text-align:center"><div style="font-size:1.3rem;font-weight:900;color:var(--accent)" id="boScore">0</div><div style="font-size:.6rem;color:var(--text2)">امتیاز</div></div>
+      <div style="text-align:center"><div style="font-size:1.3rem;font-weight:900;color:var(--accent)" id="boLives">3</div><div style="font-size:.6rem;color:var(--text2)">جان</div></div>
+      <div style="text-align:center"><div style="font-size:1.3rem;font-weight:900;color:var(--accent)" id="boHigh"></div><div style="font-size:.6rem;color:var(--text2)">رکورد</div></div>
+    </div>
+    <div style="position:relative;display:flex;justify-content:center">
+      <canvas id="boCanvas" width="${W}" height="${H}" style="border-radius:8px;border:1px solid var(--border);max-width:100%;aspect-ratio:${W}/${H}"></canvas>
+      <div id="boOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);border-radius:8px;cursor:pointer">
+        <span style="color:#fff;font-size:1.1rem;font-weight:700;text-align:center;padding:16px">کلیک یا لمس برای شروع</span>
+      </div>
+    </div>
+    <p style="text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px">ماوس یا لمس برای حرکت پدل</p>`;
+
+  canvas = c.querySelector('#boCanvas');
+  ctx = canvas.getContext('2d');
+
   function init() {
     score = 0; lives = 3; started = false; gameOver = false;
     ball = { x: W/2, y: H-60, dx: 3, dy: -3 };
@@ -4524,144 +4541,88 @@ function renderBreakout(c) {
         bricks.push({ x: col * (BRICK_W + BRICK_PAD) + BRICK_PAD, y: r * (BRICK_H + BRICK_PAD) + 40, w: BRICK_W, h: BRICK_H, alive: true, color: brickColors[r] });
       }
     }
-    updateUI();
-    draw();
+    updateUI(); draw();
   }
   function updateUI() {
-    var el = c.querySelector('#boScore'); if (el) el.textContent = score;
-    var el2 = c.querySelector('#boLives'); if (el2) el2.textContent = lives;
-    var el3 = c.querySelector('#boHigh'); if (el3) el3.textContent = highScore;
+    var e1 = c.querySelector('#boScore'); if (e1) e1.textContent = score;
+    var e2 = c.querySelector('#boLives'); if (e2) e2.textContent = lives;
+    var e3 = c.querySelector('#boHigh'); if (e3) e3.textContent = highScore;
   }
   function draw() {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0a0b10';
     ctx.fillRect(0, 0, W, H);
-    // bricks
     for (var i = 0; i < bricks.length; i++) {
-      var b = bricks[i];
-      if (!b.alive) continue;
-      ctx.fillStyle = b.color;
-      ctx.beginPath();
-      ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.fill();
+      var b = bricks[i]; if (!b.alive) continue;
+      ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.w, b.h);
     }
-    // paddle
     ctx.fillStyle = '#6c5ce7';
-    ctx.beginPath();
     ctx.fillRect(paddle.x, H - 30, paddle.w, PAD_H);
-    ctx.fill();
-    // ball
     ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2);
-    ctx.fill();
-    // overlay
+    ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2); ctx.fill();
     if (!started && !gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 18px Vazirmatn';
-      ctx.textAlign = 'center';
-      ctx.fillText('کلیک یا Space برای شروع', W/2, H/2);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Vazirmatn'; ctx.textAlign = 'center';
+      ctx.fillText('کلیک یا لمس برای شروع', W/2, H/2);
     }
   }
   function loop() {
     if (gameOver || !started) return;
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-    // wall collision
+    ball.x += ball.dx; ball.y += ball.dy;
     if (ball.x - BALL_R < 0 || ball.x + BALL_R > W) ball.dx = -ball.dx;
     if (ball.y - BALL_R < 0) ball.dy = -ball.dy;
-    // bottom - lose life
     if (ball.y + BALL_R > H) {
-      lives--;
-      updateUI();
+      lives--; updateUI();
       if (lives <= 0) {
         gameOver = true;
-        if(score > highScore) { highScore = score; lsSet('breakout_high', highScore); }
-        showToast('بازی تمام شد! امتیاز: ' + score + (score >= highScore ? ' 🏆 رکورد جدید!' : ''));
-        return;
+        if (score > highScore) { highScore = score; lsSet('breakout_high', highScore); updateUI(); }
+        showToast('بازی تمام شد! امتیاز: ' + score); return;
       }
-      ball.x = W/2; ball.y = H-60; ball.dx = 3; ball.dy = -3; started = false;
-      draw(); return;
+      ball.x = W/2; ball.y = H-60; ball.dx = 3; ball.dy = -3; started = false; draw(); return;
     }
-    // paddle collision
     if (ball.y + BALL_R > H - 30 && ball.x > paddle.x && ball.x < paddle.x + paddle.w) {
       ball.dy = -Math.abs(ball.dy);
-      // angle based on hit position
-      var hitPos = (ball.x - paddle.x) / paddle.w;
-      ball.dx = 6 * (hitPos - 0.5);
+      ball.dx = 6 * ((ball.x - paddle.x) / paddle.w - 0.5);
     }
-    // brick collision
     for (var i = 0; i < bricks.length; i++) {
-      var b = bricks[i];
-      if (!b.alive) continue;
+      var b = bricks[i]; if (!b.alive) continue;
       if (ball.x > b.x && ball.x < b.x + b.w && ball.y - BALL_R < b.y + b.h && ball.y + BALL_R > b.y) {
-        b.alive = false;
-        ball.dy = -ball.dy;
-        score += 10;
-        updateUI();
-        break;
+        b.alive = false; ball.dy = -ball.dy; score += 10; updateUI(); break;
       }
     }
-    // win check
     if (bricks.every(function(b) { return !b.alive; })) {
       gameOver = true;
-      if(score > highScore) { highScore = score; lsSet('breakout_high', highScore); }
-      showToast('🎉 تبریک! بردید! امتیاز: ' + score + (score >= highScore ? ' 🏆 رکورد جدید!' : ''));
-      return;
+      if (score > highScore) { highScore = score; lsSet('breakout_high', highScore); updateUI(); }
+      showToast('🎉 بردید! امتیاز: ' + score); return;
     }
-    draw();
-    animId = requestAnimationFrame(loop);
+    draw(); animId = requestAnimationFrame(loop);
   }
-  canvas = c.querySelector('#boCanvas');
-  ctx = canvas.getContext('2d');
+  function movePaddle(clientX) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleX = W / rect.width;
+    paddle.x = (clientX - rect.left) * scaleX - paddle.w / 2;
+    if (paddle.x < 0) paddle.x = 0;
+    if (paddle.x + paddle.w > W) paddle.x = W - paddle.w;
+    if (started && !gameOver) draw();
+  }
   c.querySelector('#boOverlay').onclick = function() {
     if (gameOver) { init(); return; }
     if (!started) { started = true; c.querySelector('#boOverlay').style.display = 'none'; loop(); }
   };
-  canvas.addEventListener('mousemove', function(e) {
-    var rect = canvas.getBoundingClientRect();
-    var scaleX = W / rect.width;
-    paddle.x = (e.clientX - rect.left) * scaleX - paddle.w / 2;
-    if (paddle.x < 0) paddle.x = 0;
-    if (paddle.x + paddle.w > W) paddle.x = W - paddle.w;
-    if (started && !gameOver) draw();
-  });
-  canvas.addEventListener('touchmove', function(e) {
+  canvas.addEventListener('mousemove', function(e) { movePaddle(e.clientX); });
+  canvas.addEventListener('touchmove', function(e) { e.preventDefault(); movePaddle(e.touches[0].clientX); }, { passive: false });
+  canvas.addEventListener('touchstart', function(e) {
     e.preventDefault();
-    var rect = canvas.getBoundingClientRect();
-    var scaleX = W / rect.width;
-    paddle.x = (e.touches[0].clientX - rect.left) * scaleX - paddle.w / 2;
-    if (paddle.x < 0) paddle.x = 0;
-    if (paddle.x + paddle.w > W) paddle.x = W - paddle.w;
-    if (started && !gameOver) draw();
+    if (gameOver) { init(); return; }
+    if (!started) { started = true; c.querySelector('#boOverlay').style.display = 'none'; loop(); }
+    movePaddle(e.touches[0].clientX);
   }, { passive: false });
   document.addEventListener('keydown', function handler(e) {
     if (!c.isConnected) { document.removeEventListener('keydown', handler); return; }
     if (gameOver) return;
-    if(e.key==="ArrowLeft") { paddle.x -= 20; if (paddle.x < 0) paddle.x = 0; if (started) draw(); e.preventDefault(); }
-    if(e.key==="ArrowRight") { paddle.x += 20; if (paddle.x + paddle.w > W) paddle.x = W - paddle.w; if (started) draw(); e.preventDefault(); }
+    if (e.key === 'ArrowLeft') { paddle.x -= 20; if (paddle.x < 0) paddle.x = 0; if (started) draw(); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { paddle.x += 20; if (paddle.x + paddle.w > W) paddle.x = W - paddle.w; if (started) draw(); e.preventDefault(); }
     if (e.key === ' ' && !started) { started = true; c.querySelector('#boOverlay').style.display = 'none'; loop(); e.preventDefault(); }
   });
-  c.innerHTML = `
-    <div class="game-score">
-      <div class="game-score-item"><div class="game-score-num" id="boScore">0</div><div class="game-score-label">امتیاز</div></div>
-      <div class="game-score-item"><div class="game-score-num" id="boLives">3</div><div class="game-score-label">جان</div></div>
-      <div class="game-score-item"><div class="game-score-num" id="boHigh">0</div><div class="game-score-label">رکورد</div></div>
-    </div>
-    <div style="position:relative;display:flex;justify-content:center">
-      <canvas id="boCanvas" width="${W}" height="${H}" style="border-radius:8px;border:1px solid var(--border);max-width:100%;aspect-ratio:${W}/${H}"></canvas>
-      <div id="boOverlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.4);border-radius:8px;cursor:pointer">
-        <span style="color:#fff;font-size:1.1rem;font-weight:700;text-align:center;padding:16px">کلیک یا Space برای شروع</span>
-      </div>
-    </div>
-    <p style="text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px">ماوس یا ← → برای حرکت</p>`;
-  canvas = c.querySelector('#boCanvas');
-  ctx = canvas.getContext('2d');
-  c.querySelector('#boOverlay').onclick = function() {
-    if (gameOver) { init(); return; }
-    if (!started) { started = true; c.querySelector('#boOverlay').style.display = 'none'; loop(); }
-  };
   init();
 }
 
@@ -4760,72 +4721,72 @@ function renderWhackMole(c) {
 function renderPong(c) {
   var canvas, ctx, ball, p1, p2, score1, score2, animId, started, gameOver;
   var W = 400, H = 300, PAD_W = 10, PAD_H = 60, BALL_R = 6;
-  var WINNING = 5;
+  var WINNING = 7, aiSpeed = 3.5;
+
+  c.innerHTML = `
+    <div style="display:flex;justify-content:center;gap:24px;margin-bottom:8px">
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:900;color:#6c5ce7" id="pgScore1">0</div><div style="font-size:.6rem;color:var(--text2)">شما</div></div>
+      <div style="font-size:1rem;color:var(--text2);align-self:center">🏓 Pong</div>
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:900;color:#e94560" id="pgScore2">0</div><div style="font-size:.6rem;color:var(--text2)">کامپیوتر</div></div>
+    </div>
+    <div style="display:flex;justify-content:center">
+      <canvas id="pgCanvas" width="${W}" height="${H}" style="border-radius:8px;border:1px solid var(--border);max-width:100%;cursor:none"></canvas>
+    </div>
+    <div style="text-align:center;margin-top:8px"><button class="btn btn-primary" id="pgStart">شروع / ریست</button></div>
+    <p style="text-align:center;font-size:.75rem;color:var(--text2);margin-top:6px">ماوس/لمس = حرکت | اول به ${WINNING} برسه!</p>`;
+
+  canvas = c.querySelector('#pgCanvas');
+  ctx = canvas.getContext('2d');
+
   function init() {
     score1 = 0; score2 = 0; started = false; gameOver = false;
     ball = { x: W/2, y: H/2, dx: 4 * (Math.random() > 0.5 ? 1 : -1), dy: 3 * (Math.random() > 0.5 ? 1 : -1) };
-    p1 = { x: 15, y: H/2 - PAD_H/2, dy: 0 };
-    p2 = { x: W - 15 - PAD_W, y: H/2 - PAD_H/2, dy: 0 };
-    updateUI();
-    draw();
+    p1 = { x: 15, y: H/2 - PAD_H/2 };
+    p2 = { x: W - 15 - PAD_W, y: H/2 - PAD_H/2 };
+    updateUI(); draw();
   }
   function updateUI() {
-    var el1 = c.querySelector('#pgScore1'); if (el1) el1.textContent = score1;
-    var el2 = c.querySelector('#pgScore2'); if (el2) el2.textContent = score2;
+    var e1 = c.querySelector('#pgScore1'); if (e1) e1.textContent = score1;
+    var e2 = c.querySelector('#pgScore2'); if (e2) e2.textContent = score2;
   }
   function draw() {
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#0a0b10';
     ctx.fillRect(0, 0, W, H);
-    // center line
-    ctx.setLineDash([5, 5]);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
     ctx.setLineDash([]);
-    // paddles
-    ctx.fillStyle = '#6c5ce7';
-    ctx.fillRect(p1.x, p1.y, PAD_W, PAD_H);
-    ctx.fillStyle = '#e94560';
-    ctx.fillRect(p2.x, p2.y, PAD_W, PAD_H);
-    // ball
+    ctx.fillStyle = '#6c5ce7'; ctx.fillRect(p1.x, p1.y, PAD_W, PAD_H);
+    ctx.fillStyle = '#e94560'; ctx.fillRect(p2.x, p2.y, PAD_W, PAD_H);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(ball.x, ball.y, BALL_R, 0, Math.PI * 2); ctx.fill();
-    // overlay
     if (!started && !gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 16px Vazirmatn';
-      ctx.textAlign = 'center';
-      ctx.fillText('W/S ← بازیکن ۱     ↑/↓ ← بازیکن ۲', W/2, H/2 - 10);
-      ctx.fillText('Space برای شروع', W/2, H/2 + 20);
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Vazirmatn'; ctx.textAlign = 'center';
+      ctx.fillText('کلیک یا لمس برای شروع', W/2, H/2);
     }
+  }
+  function aiMove() {
+    var target = ball.y - PAD_H / 2;
+    var diff = target - p2.y;
+    if (Math.abs(diff) > aiSpeed) p2.y += diff > 0 ? aiSpeed : -aiSpeed;
+    else p2.y = target;
+    if (p2.y < 0) p2.y = 0;
+    if (p2.y + PAD_H > H) p2.y = H - PAD_H;
   }
   function loop() {
     if (gameOver || !started) return;
-    // move paddles
-    p1.y += p1.dy;
-    p2.y += p2.dy;
-    if (p1.y < 0) p1.y = 0; if (p1.y + PAD_H > H) p1.y = H - PAD_H;
-    if (p2.y < 0) p2.y = 0; if (p2.y + PAD_H > H) p2.y = H - PAD_H;
-    // move ball
-    ball.x += ball.dx;
-    ball.y += ball.dy;
-    // top/bottom
+    aiMove();
+    ball.x += ball.dx; ball.y += ball.dy;
     if (ball.y - BALL_R < 0 || ball.y + BALL_R > H) ball.dy = -ball.dy;
-    // paddle collision
-    if (ball.x - BALL_R < p1.x + PAD_W && ball.y > p1.y && ball.y < p1.y + PAD_H && ball.dx < 0) {
-      ball.dx = Math.abs(ball.dx) * 1.05;
-      ball.dy += (ball.y - (p1.y + PAD_H/2)) * 0.1;
+    if (ball.x - BALL_R < p1.x + PAD_W && ball.x > p1.x && ball.y > p1.y && ball.y < p1.y + PAD_H && ball.dx < 0) {
+      ball.dx = Math.abs(ball.dx) * 1.05; ball.dy += (ball.y - (p1.y + PAD_H/2)) * 0.1;
     }
-    if (ball.x + BALL_R > p2.x && ball.y > p2.y && ball.y < p2.y + PAD_H && ball.dx > 0) {
-      ball.dx = -Math.abs(ball.dx) * 1.05;
-      ball.dy += (ball.y - (p2.y + PAD_H/2)) * 0.1;
+    if (ball.x + BALL_R > p2.x && ball.x < p2.x + PAD_W && ball.y > p2.y && ball.y < p2.y + PAD_H && ball.dx > 0) {
+      ball.dx = -Math.abs(ball.dx) * 1.05; ball.dy += (ball.y - (p2.y + PAD_H/2)) * 0.1;
     }
-    // scoring
     if (ball.x < 0) { score2++; updateUI(); checkWin(); resetBall(); return; }
     if (ball.x > W) { score1++; updateUI(); checkWin(); resetBall(); return; }
-    draw();
-    animId = requestAnimationFrame(loop);
+    draw(); animId = requestAnimationFrame(loop);
   }
   function resetBall() {
     ball.x = W/2; ball.y = H/2;
@@ -4834,50 +4795,33 @@ function renderPong(c) {
     draw();
   }
   function checkWin() {
-    if (score1 >= WINNING) { gameOver = true; showToast('🎉 بازیکن ۱ برد!'); }
-    if (score2 >= WINNING) { gameOver = true; showToast('🎉 بازیکن ۲ برد!'); }
+    if (score1 >= WINNING) { gameOver = true; showToast('🎉 شما بردید!'); }
+    if (score2 >= WINNING) { gameOver = true; showToast('کامپیوتر برد! 😢'); }
   }
+  function movePaddle(clientY) {
+    var rect = canvas.getBoundingClientRect();
+    var scaleY = H / rect.height;
+    p1.y = (clientY - rect.top) * scaleY - PAD_H / 2;
+    if (p1.y < 0) p1.y = 0;
+    if (p1.y + PAD_H > H) p1.y = H - PAD_H;
+    if (started && !gameOver) draw();
+  }
+  function startGame() {
+    if (!started || gameOver) { init(); started = true; loop(); }
+  }
+  canvas.addEventListener('mousemove', function(e) { movePaddle(e.clientY); });
+  canvas.addEventListener('click', function() { startGame(); });
+  canvas.addEventListener('touchmove', function(e) { e.preventDefault(); movePaddle(e.touches[0].clientY); }, { passive: false });
+  canvas.addEventListener('touchstart', function(e) { e.preventDefault(); movePaddle(e.touches[0].clientY); startGame(); }, { passive: false });
   document.addEventListener('keydown', function handler(e) {
     if (!c.isConnected) { document.removeEventListener('keydown', handler); return; }
-    // Player 1: W/S
-    if (e.key === 'w' || e.key === 'W') { p1.dy = -6; e.preventDefault(); }
-    if (e.key === 's' || e.key === 'S') { p1.dy = 6; e.preventDefault(); }
-    // Player 2: ArrowUp/ArrowDown
-    if (e.key === 'ArrowUp') { p2.dy = -6; e.preventDefault(); }
-    if (e.key === 'ArrowDown') { p2.dy = 6; e.preventDefault(); }
-    if (e.key === ' ' && !started && !gameOver) { started = true; loop(); e.preventDefault(); }
-    if (e.key === ' ' && gameOver) { init(); e.preventDefault(); }
+    if (e.key === 'ArrowUp') { p1.y -= 15; if (p1.y < 0) p1.y = 0; if (started) draw(); e.preventDefault(); }
+    if (e.key === 'ArrowDown') { p1.y += 15; if (p1.y + PAD_H > H) p1.y = H - PAD_H; if (started) draw(); e.preventDefault(); }
+    if (e.key === ' ') { startGame(); e.preventDefault(); }
   });
-  document.addEventListener('keyup', function handler(e) {
-    if (!c.isConnected) { document.removeEventListener('keyup', handler); return; }
-    if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S') p1.dy = 0;
-    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') p2.dy = 0;
-  });
-  c.innerHTML = `
-    <div class="game-score">
-      <div class="game-score-item"><div class="game-score-num" id="pgScore1" style="color:var(--accent)">0</div><div class="game-score-label">بازیکن ۱ (W/S)</div></div>
-      <div class="game-score-item"><div class="game-score-num">—</div><div class="game-score-label">Pong</div></div>
-      <div class="game-score-item"><div class="game-score-num" id="pgScore2" style="color:var(--danger)">0</div><div class="game-score-label">بازیکن ۲ (↑/↓)</div></div>
-    </div>
-    <div style="display:flex;justify-content:center">
-      <canvas id="pgCanvas" width="${W}" height="${H}" style="border-radius:8px;border:1px solid var(--border);max-width:100%"></canvas>
-    </div>
-    <div style="display:flex;justify-content:center;gap:8px;margin-top:8px">
-      <button class="btn btn-primary" id="pgStart">شروع / ریست</button>
-    </div>
-    <p style="text-align:center;font-size:.75rem;color:var(--text2);margin-top:8px">بازیکن ۱: W/S ← بازیکن ۲: ↑/↓ — اول به ${WINNING} برسه!</p>`;
-  canvas = c.querySelector('#pgCanvas');
-  ctx = canvas.getContext('2d');
-  c.querySelector('#pgStart').onclick = function() { init(); started = true; loop(); };
+  c.querySelector('#pgStart').onclick = startGame;
   init();
 }
-
-// ─── Register new games ───
-registerTools([
-  { id:'game-breakout', name:'آجرشکن', icon:'🧱', category:'games', keywords:['آجر','شکن','breakout','brick','بازی'], desc:'بازی آجرشکن کلاسیک', render:renderBreakout },
-  { id:'game-whackmole', name:'ضربه به موش', icon:'🐹', category:'games', keywords:['موش','ضربه','whack','mole','بازی'], desc:'بازی ضربه به موش', render:renderWhackMole },
-  { id:'game-pong', name:'پونگ', icon:'🏓', category:'games', keywords:['پونگ','pong','دو','نفره','بازی'], desc:'بازی پونگ دو نفره', render:renderPong },
-]);
 
 // ─── Register all games ───
 registerTools([
@@ -4899,6 +4843,9 @@ registerTools([
   { id:'game-tetris', name:'تتریس', icon:'🧱', category:'games', keywords:['تتریس','tetris','بازی'], desc:'بازی تتریس', render:renderTetris },
   { id:'game-flappy', name:'فلپی برد', icon:'🐦', category:'games', keywords:['فلپی','flappy','پرنده','بازی'], desc:'بازی فلپی برد', render:renderFlappy },
   { id:'game-connect4', name:'چهار در یک ردیف', icon:'🔴', category:'games', keywords:['چهار','connect','ردیف','بازی'], desc:'بازی چهار در یک ردیف', render:renderConnect4 },
+  { id:'game-breakout', name:'آجرشکن', icon:'🧱', category:'games', keywords:['آجر','شکن','breakout','brick','بازی'], desc:'بازی آجرشکن کلاسیک', render:renderBreakout },
+  { id:'game-whackmole', name:'ضربه به موش', icon:'🐹', category:'games', keywords:['موش','ضربه','whack','mole','بازی'], desc:'بازی ضربه به موش', render:renderWhackMole },
+  { id:'game-pong', name:'پونگ', icon:'🏓', category:'games', keywords:['پونگ','pong','بازی','AI'], desc:'بازی پونگ مقابل کامپیوتر', render:renderPong },
 ]);
 
 
