@@ -5474,7 +5474,6 @@ const healthTools = [
 registerTools(healthTools);
 
 
-registerTools(healthTools);
 
 
 
@@ -5938,7 +5937,6 @@ const iranInfoTools = [
 registerTools(iranInfoTools);
 
 
-registerTools(iranInfoTools);
 
 
 
@@ -11432,6 +11430,531 @@ registerTools(timeTools);
 
 
 
+
+// ═══════════════════════════════════════════
+// NEW TOOLS — Added by review
+// ═══════════════════════════════════════════
+
+// ─── Word Counter ───
+registerTool({
+  id: 'text-wordcount',
+  name: 'شمارشگر کلمات',
+  icon: '📊',
+  category: 'text-code',
+  keywords: ['شمارش', 'کلمه', 'حرف', 'پاراگراف', 'word', 'count', 'character'],
+  desc: 'شمارش کلمات، حروف، خطوط، پاراگراف‌ها و زمان خواندن',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="input-group">
+          <label>متن خود را وارد کنید:</label>
+          <textarea id="wc-input" rows="8" placeholder="اینجا تایپ کنید یا متن را paste کنید..."></textarea>
+        </div>
+        <div id="wc-result" class="result show" style="display:block">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;text-align:center">
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-chars">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">حروف (با فاصله)</div>
+            </div>
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-chars-no-space">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">حروف (بدون فاصله)</div>
+            </div>
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-words">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">کلمات</div>
+            </div>
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-lines">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">خطوط</div>
+            </div>
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-paragraphs">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">پاراگراف‌ها</div>
+            </div>
+            <div style="background:var(--glass2);padding:14px;border-radius:12px">
+              <div style="font-size:1.8rem;font-weight:900;color:var(--accent)" id="wc-reading">0</div>
+              <div style="font-size:.72rem;color:var(--text2)">دقیقه خواندن</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    var input = container.querySelector('#wc-input');
+    function update() {
+      var text = input.value;
+      var chars = text.length;
+      var charsNoSpace = text.replace(/\s/g, '').length;
+      var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      var lines = text ? text.split('\n').length : 0;
+      var paragraphs = text.trim() ? text.trim().split(/\n\s*\n/).length : 0;
+      var readingMin = Math.ceil(words / 200);
+      container.querySelector('#wc-chars').textContent = toPersianDigits(chars);
+      container.querySelector('#wc-chars-no-space').textContent = toPersianDigits(charsNoSpace);
+      container.querySelector('#wc-words').textContent = toPersianDigits(words);
+      container.querySelector('#wc-lines').textContent = toPersianDigits(lines);
+      container.querySelector('#wc-paragraphs').textContent = toPersianDigits(paragraphs);
+      container.querySelector('#wc-reading').textContent = toPersianDigits(readingMin);
+    }
+    input.addEventListener('input', update);
+  }
+});
+
+// ─── Text Case Converter ───
+registerTool({
+  id: 'text-case',
+  name: 'تبدیل حالت متن',
+  icon: 'Aa',
+  category: 'text-code',
+  keywords: ['case', 'بزرگ', 'کوچک', 'حروف', 'تبدیل', 'uppercase', 'lowercase'],
+  desc: 'تبدیل متن به حالت‌های مختلف: بزرگ، کوچک، عنوانی، معکوس و برعکس',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="input-group">
+          <label>متن ورودی:</label>
+          <textarea id="tc-input" rows="4" placeholder="متن خود را وارد کنید..."></textarea>
+        </div>
+        <div class="btn-group" style="flex-wrap:wrap">
+          <button class="btn" id="tc-upper">همه بزرگ</button>
+          <button class="btn" id="tc-lower">همه کوچک</button>
+          <button class="btn" id="tc-title">عنوانی</button>
+          <button class="btn" id="tc-alt">معکوس</button>
+          <button class="btn" id="tc-rev">برعکس</button>
+        </div>
+        <div class="input-group" style="margin-top:12px">
+          <label>خروجی:</label>
+          <textarea id="tc-out" rows="4" readonly></textarea>
+        </div>
+        <button class="btn btn-primary" id="tc-copy">📋 کپی خروجی</button>
+      </div>
+    `;
+    var inp = container.querySelector('#tc-input');
+    var out = container.querySelector('#tc-out');
+    container.querySelector('#tc-upper').onclick = function() { out.value = inp.value.toUpperCase(); };
+    container.querySelector('#tc-lower').onclick = function() { out.value = inp.value.toLowerCase(); };
+    container.querySelector('#tc-title').onclick = function() { out.value = inp.value.replace(/\b\w/g, function(c) { return c.toUpperCase(); }); };
+    container.querySelector('#tc-alt').onclick = function() { out.value = inp.value.split('').map(function(c,i) { return i%2 ? c.toUpperCase() : c.toLowerCase(); }).join(''); };
+    container.querySelector('#tc-rev').onclick = function() { out.value = inp.value.split('').reverse().join(''); };
+    container.querySelector('#tc-copy').onclick = function() { navigator.clipboard.writeText(out.value); showToast('کپی شد!'); };
+  }
+});
+
+// ─── Persian Text Tools ───
+registerTool({
+  id: 'text-persian-tools',
+  name: 'ابزار متن فارسی',
+  icon: '🇮🇷',
+  category: 'text-code',
+  keywords: ['فارسی', 'عربی', 'نیم‌فاصله', 'persian', 'arabic'],
+  desc: 'اصلاح حروف عربی به فارسی، نیم‌فاصله و پاکسازی متن',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="input-group">
+          <label>متن ورودی:</label>
+          <textarea id="pt-input" rows="5" placeholder="متن فارسی یا عربی خود را وارد کنید..."></textarea>
+        </div>
+        <div class="btn-group" style="flex-wrap:wrap">
+          <button class="btn btn-primary" id="pt-fix">🇮🇷 اصلاح به فارسی</button>
+          <button class="btn" id="pt-norm">📏 نیم‌فاصله</button>
+          <button class="btn" id="pt-clean">🧹 پاکسازی</button>
+        </div>
+        <div class="input-group" style="margin-top:12px">
+          <label>خروجی:</label>
+          <textarea id="pt-out" rows="5" readonly></textarea>
+        </div>
+        <button class="btn btn-primary" id="pt-copy">📋 کپی خروجی</button>
+      </div>
+    `;
+    var inp = container.querySelector('#pt-input');
+    var out = container.querySelector('#pt-out');
+    container.querySelector('#pt-fix').onclick = function() {
+      var t = inp.value;
+      t = t.replace(/ي/g, 'ی').replace(/ى/g, 'ی');
+      t = t.replace(/ك/g, 'ک');
+      t = t.replace(/ة/g, 'ه');
+      t = t.replace(/ؤ/g, 'و').replace(/أ/g, 'ا').replace(/إ/g, 'ا');
+      t = t.replace(/ـ/g, '');
+      t = t.replace(/[\s]+/g, ' ').trim();
+      out.value = t;
+      showToast('اصلاح شد!');
+    };
+    container.querySelector('#pt-norm').onclick = function() {
+      var t = inp.value;
+      t = t.replace(/\b(می|نمی|بر|در|از|به|با|تا|نه|هر)\s+/g, '$1\u200c');
+      t = t.replace(/\s+(ها|های|هایی|هایم|هایت|هایش|هایمان|هایتان|هایشان|تر|تری|ترین|ام|ات|اش|مان|تان|شان)\b/g, '\u200c$1');
+      out.value = t;
+      showToast('نیم‌فاصله اعمال شد!');
+    };
+    container.querySelector('#pt-clean').onclick = function() {
+      var t = inp.value;
+      t = t.replace(/[\u200b\u200c\u200d\ufeff]/g, '');
+      t = t.replace(/\s+/g, ' ').trim();
+      t = t.replace(/([.!?؟،;:]){2,}/g, '$1');
+      out.value = t;
+      showToast('پاکسازی شد!');
+    };
+    container.querySelector('#pt-copy').onclick = function() { navigator.clipboard.writeText(out.value); showToast('کپی شد!'); };
+  }
+});
+
+// ─── Unit Converter: Data Size ───
+registerTool({
+  id: 'conv-datasize',
+  name: 'مبدل حجم داده',
+  icon: '💾',
+  category: 'converters',
+  keywords: ['حجم', 'داده', 'بایت', 'کیلوبایت', 'مگابایت', 'گیگابایت', 'ترابایت', 'byte', 'kb', 'mb', 'gb', 'tb'],
+  desc: 'تبدیل بین بایت، کیلوبایت، مگابایت، گیگابایت و ترابایت',
+  render: function(container) {
+    var units = [
+      { id: 'b', name: 'بایت (B)', factor: 1 },
+      { id: 'kb', name: 'کیلوبایت (KB)', factor: 1024 },
+      { id: 'mb', name: 'مگابایت (MB)', factor: 1048576 },
+      { id: 'gb', name: 'گیگابایت (GB)', factor: 1073741824 },
+      { id: 'tb', name: 'ترابایت (TB)', factor: 1099511627776 },
+      { id: 'pb', name: 'پتابایت (PB)', factor: 1125899906842624 }
+    ];
+    var opts = units.map(function(u) { return '<option value="' + u.id + '">' + u.name + '</option>'; }).join('');
+    container.innerHTML = `
+      <div class="card">
+        <div class="inline-inputs">
+          <div class="input-group" style="flex:2">
+            <label>مقدار:</label>
+            <input type="number" id="ds-val" value="1" step="any">
+          </div>
+          <div class="input-group" style="flex:1">
+            <label>از:</label>
+            <select id="ds-from">` + opts + `</select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="ds-convert" style="width:100%">🔄 تبدیل</button>
+        <div id="ds-result" class="result"></div>
+      </div>
+    `;
+    container.querySelector('#ds-convert').onclick = function() {
+      var val = parseFloat(container.querySelector('#ds-val').value);
+      var fromId = container.querySelector('#ds-from').value;
+      var from = units.find(function(u) { return u.id === fromId; });
+      if (isNaN(val)) { showToast('لطفاً عدد وارد کنید'); return; }
+      var bytes = val * from.factor;
+      var html = '';
+      units.forEach(function(u) {
+        var converted = bytes / u.factor;
+        var display = converted < 0.001 ? converted.toExponential(3) : converted.toLocaleString('fa-IR', { maximumFractionDigits: 4 });
+        html += '<div class="row"><span class="label">' + u.name + '</span><span class="value">' + display + '</span></div>';
+      });
+      var el = container.querySelector('#ds-result');
+      el.innerHTML = html;
+      el.classList.add('show');
+    };
+  }
+});
+
+// ─── IP & Network Info ───
+registerTool({
+  id: 'other-ipinfo',
+  name: 'اطلاعات IP',
+  icon: '🌐',
+  category: 'other',
+  keywords: ['IP', 'آی‌پی', 'شبکه', 'موقعیت', 'location', 'network', 'internet'],
+  desc: 'نمایش اطلاعات IP عمومی شما شامل موقعیت جغرافیایی و ISP',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <button class="btn btn-primary" id="ip-fetch" style="width:100%">🔍 دریافت اطلاعات IP</button>
+        <div id="ip-result" class="result"></div>
+      </div>
+    `;
+    container.querySelector('#ip-fetch').onclick = async function() {
+      var el = container.querySelector('#ip-result');
+      el.innerHTML = '<div style="text-align:center;padding:20px">⏳ در حال دریافت...</div>';
+      el.classList.add('show');
+      try {
+        var r = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error();
+        var d = await r.json();
+        el.innerHTML = [
+          '<div class="row"><span class="label">IP</span><span class="value">' + d.ip + '</span></div>',
+          '<div class="row"><span class="label">کشور</span><span class="value">' + d.country_name + ' ' + d.country_code + '</span></div>',
+          '<div class="row"><span class="label">شهر</span><span class="value">' + d.city + '</span></div>',
+          '<div class="row"><span class="label">منطقه</span><span class="value">' + d.region + '</span></div>',
+          '<div class="row"><span class="label">کد پستی</span><span class="value">' + (d.postal || '—') + '</span></div>',
+          '<div class="row"><span class="label">ISP</span><span class="value">' + d.org + '</span></div>',
+          '<div class="row"><span class="label">timezone</span><span class="value">' + d.timezone + '</span></div>',
+          '<div class="row"><span class="label">مختصات</span><span class="value">' + d.latitude + ', ' + d.longitude + '</span></div>'
+        ].join('');
+      } catch (err) {
+        el.innerHTML = '<div style="text-align:center;color:var(--danger);padding:20px">❌ خطا در دریافت اطلاعات</div>';
+      }
+    };
+  }
+});
+
+// ─── Persian Lorem Ipsum ───
+registerTool({
+  id: 'dev-persianlorem2',
+  name: 'لورم ایپسوم فارسی',
+  icon: '📜',
+  category: 'text-code',
+  keywords: ['لورم', 'ایپسوم', 'متن', 'placeholder', 'فارسی', 'lorem', 'ipsum'],
+  desc: 'تولید متن لورم ایپسوم فارسی با تعداد پاراگراف دلخواه',
+  render: function(container) {
+    var sentences = [
+      'لورم ایپسوم متن ساختگی با تولید سادگی نامفهوم از صنعت چاپ و با استفاده از طراحان گرافیک است.',
+      'چاپگرها و متون بلکه روزنامه و مجله در ستون و سطرآنچنان که لازم است و برای شرایط فعلی تکنولوژی مورد نیاز و کاربردهای متنوع با هدف بهبود ابزارهای کاربردی می باشد.',
+      'کتابهای زیادی در شصت و سه درصد گذشته حال و آینده شناخت فراوان جامعه و متخصصان را می طلبد تا با نرم افزارها شناخت بیشتری را برای طراحان رایانه ای علی الخصوص طراحان خلاقی و فرهنگ پیشرو در زبان فارسی ایجاد کرد.',
+      'در این صورت می توان امید داشت که تمام و دشواری موجود در ارائه راهکارها و شرایط سخت تایپ به پایان رسد و زمان مورد نیاز شامل حروفچینی دستاوردهای اصلی و جوابگوی سوالات پیوسته اهل دنیای موجود طراحی اساسا مورد استفاده قرار گیرد.',
+      'لورم ایپسوم طراحان هنوز هم در حال استفاده از این متن هستند و حتی نسخه های جدید آن نیز منتشر شده است.',
+      'بسیاری از بسته های نرم افزاری و صفحات وب از این متن به عنوان placeholder استفاده می کنند.',
+      'هدف از این متن پر کردن فضای خالی متن ها و نمایش ظاهر طرح نهایی بدون تمرکز بر محتوای واقعی است.',
+      'این روش به طراحان کمک می کند تا بدون حواس پرتی به طراحی بصری تمرکز کنند.'
+    ];
+    container.innerHTML = `
+      <div class="card">
+        <div class="inline-inputs">
+          <div class="input-group">
+            <label>تعداد پاراگراف:</label>
+            <input type="number" id="pl-count" value="3" min="1" max="20">
+          </div>
+          <div class="input-group">
+            <label>نوع:</label>
+            <select id="pl-type">
+              <option value="lorem">لورم ایپسوم</option>
+              <option value="random">تصادفی</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="pl-gen" style="width:100%">📜 تولید متن</button>
+        <div class="input-group" style="margin-top:12px">
+          <textarea id="pl-out" rows="8" readonly style="line-height:2"></textarea>
+        </div>
+        <button class="btn" id="pl-copy">📋 کپی</button>
+      </div>
+    `;
+    container.querySelector('#pl-gen').onclick = function() {
+      var count = parseInt(container.querySelector('#pl-count').value) || 3;
+      var type = container.querySelector('#pl-type').value;
+      var paragraphs = [];
+      for (var i = 0; i < count; i++) {
+        if (type === 'lorem') {
+          paragraphs.push(sentences[i % sentences.length]);
+        } else {
+          var shuffled = sentences.slice().sort(function() { return Math.random() - 0.5; });
+          paragraphs.push(shuffled.slice(0, 2 + Math.floor(Math.random() * 3)).join(' '));
+        }
+      }
+      container.querySelector('#pl-out').value = paragraphs.join('\n\n');
+    };
+    container.querySelector('#pl-copy').onclick = function() { navigator.clipboard.writeText(container.querySelector('#pl-out').value); showToast('کپی شد!'); };
+    container.querySelector('#pl-gen').click();
+  }
+});
+
+// ─── Password Strength Checker ───
+registerTool({
+  id: 'gen-passcheck',
+  name: 'قدرت رمز عبور',
+  icon: '🛡️',
+  category: 'generators',
+  keywords: ['رمز', 'عبور', 'قدرت', 'password', 'strength', 'security', 'امنیت'],
+  desc: 'بررسی قدرت و امنیت رمز عبور با پیشنهادات بهبود',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="input-group">
+          <label>رمز عبور خود را وارد کنید:</label>
+          <input type="text" id="pc-input" placeholder="رمز عبور..." style="font-size:1.1rem;letter-spacing:2px">
+        </div>
+        <div id="pc-bar" style="height:8px;background:var(--glass2);border-radius:4px;overflow:hidden;margin:12px 0">
+          <div id="pc-fill" style="height:100%;width:0%;border-radius:4px;transition:all .3s"></div>
+        </div>
+        <div id="pc-label" style="text-align:center;font-weight:700;font-size:.9rem;margin-bottom:12px"></div>
+        <div id="pc-details" class="result show" style="display:block"></div>
+      </div>
+    `;
+    var input = container.querySelector('#pc-input');
+    var fill = container.querySelector('#pc-fill');
+    var label = container.querySelector('#pc-label');
+    var details = container.querySelector('#pc-details');
+    function check(pw) {
+      var score = 0;
+      var checks = [];
+      if (pw.length >= 8) { score += 1; checks.push({ ok: true, text: 'حداقل ۸ کاراکتر' }); }
+      else checks.push({ ok: false, text: 'حداقل ۸ کاراکتر' });
+      if (pw.length >= 12) { score += 1; checks.push({ ok: true, text: 'حداقل ۱۲ کاراکتر (عالی)' }); }
+      if (/[a-z]/.test(pw)) { score += 1; checks.push({ ok: true, text: 'حروف کوچک (a-z)' }); }
+      else checks.push({ ok: false, text: 'حروف کوچک (a-z)' });
+      if (/[A-Z]/.test(pw)) { score += 1; checks.push({ ok: true, text: 'حروف بزرگ (A-Z)' }); }
+      else checks.push({ ok: false, text: 'حروف بزرگ (A-Z)' });
+      if (/[0-9]/.test(pw)) { score += 1; checks.push({ ok: true, text: 'اعداد (0-9)' }); }
+      else checks.push({ ok: false, text: 'اعداد (0-9)' });
+      if (/[^a-zA-Z0-9]/.test(pw)) { score += 1; checks.push({ ok: true, text: 'کاراکترهای خاص (!@#...)' }); }
+      else checks.push({ ok: false, text: 'کاراکترهای خاص (!@#...)' });
+      if (!/(.)\1{2,}/.test(pw)) { score += 1; checks.push({ ok: true, text: 'بدون تکرار متوالی' }); }
+      else checks.push({ ok: false, text: 'تکرار متوالی وجود دارد' });
+      var pct = Math.min(100, Math.round((score / 7) * 100));
+      var color, text;
+      if (pct < 30) { color = 'var(--danger)'; text = '🔴 ضعیف'; }
+      else if (pct < 60) { color = 'var(--warning)'; text = '🟡 متوسط'; }
+      else if (pct < 85) { color = 'var(--success)'; text = '🟢 قوی'; }
+      else { color = '#00b894'; text = '🟢 بسیار قوی'; }
+      fill.style.width = pct + '%';
+      fill.style.background = color;
+      label.textContent = text;
+      label.style.color = color;
+      details.innerHTML = checks.map(function(c) {
+        return '<div class="row"><span class="label">' + c.text + '</span><span class="value" style="color:' + (c.ok ? 'var(--success)' : 'var(--danger)') + '">' + (c.ok ? '✅' : '❌') + '</span></div>';
+      }).join('') + '<div class="row"><span class="label">زمان تخمینی شکست</span><span class="value">' + estimateTime(pw) + '</span></div>';
+    }
+    function estimateTime(pw) {
+      var charset = 0;
+      if (/[a-z]/.test(pw)) charset += 26;
+      if (/[A-Z]/.test(pw)) charset += 26;
+      if (/[0-9]/.test(pw)) charset += 10;
+      if (/[^a-zA-Z0-9]/.test(pw)) charset += 33;
+      var combos = Math.pow(charset || 1, pw.length);
+      var perSec = 1e10;
+      var seconds = combos / perSec;
+      if (seconds < 1) return 'آنی';
+      if (seconds < 60) return Math.round(seconds) + ' ثانیه';
+      if (seconds < 3600) return Math.round(seconds/60) + ' دقیقه';
+      if (seconds < 86400) return Math.round(seconds/3600) + ' ساعت';
+      if (seconds < 86400*365) return Math.round(seconds/86400) + ' روز';
+      if (seconds < 86400*365*1000) return Math.round(seconds/(86400*365)) + ' سال';
+      if (seconds < 86400*365*1e6) return Math.round(seconds/(86400*365*1000)) + ' هزار سال';
+      if (seconds < 86400*365*1e9) return Math.round(seconds/(86400*365*1e6)) + ' میلیون سال';
+      return 'بیشتر از عمر جهان 🌌';
+    }
+    input.addEventListener('input', function() { check(input.value); });
+    check('');
+  }
+});
+
+// ─── Text Diff / Comparison ───
+registerTool({
+  id: 'text-diff',
+  name: 'مقایسه متن',
+  icon: '🔍',
+  category: 'text-code',
+  keywords: ['مقایسه', 'تفاوت', 'diff', 'compare', 'متن', 'تغییرات'],
+  desc: 'مقایسه دو متن و نمایش تفاوت‌ها با رنگ‌بندی',
+  render: function(container) {
+    container.innerHTML = `
+      <div class="card">
+        <div class="inline-inputs">
+          <div class="input-group">
+            <label>متن اول:</label>
+            <textarea id="diff-a" rows="6" placeholder="متن اول..."></textarea>
+          </div>
+          <div class="input-group">
+            <label>متن دوم:</label>
+            <textarea id="diff-b" rows="6" placeholder="متن دوم..."></textarea>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="diff-cmp" style="width:100%">🔍 مقایسه</button>
+        <div id="diff-result" class="result" style="margin-top:12px;line-height:2.2;direction:ltr;text-align:left"></div>
+      </div>
+    `;
+    container.querySelector('#diff-cmp').onclick = function() {
+      var a = container.querySelector('#diff-a').value.split('\n');
+      var b = container.querySelector('#diff-b').value.split('\n');
+      var maxLen = Math.max(a.length, b.length);
+      var html = '';
+      var changes = 0;
+      for (var i = 0; i < maxLen; i++) {
+        var lineA = a[i] !== undefined ? a[i] : '';
+        var lineB = b[i] !== undefined ? b[i] : '';
+        if (lineA === lineB) {
+          html += '<div style="padding:2px 8px;color:var(--text2)">' + (escapeHtml(lineA) || '&nbsp;') + '</div>';
+        } else {
+          changes++;
+          if (lineA) html += '<div style="padding:2px 8px;background:rgba(225,112,85,.15);color:var(--danger);text-decoration:line-through">- ' + escapeHtml(lineA) + '</div>';
+          if (lineB) html += '<div style="padding:2px 8px;background:rgba(0,184,148,.15);color:var(--success)">+ ' + escapeHtml(lineB) + '</div>';
+        }
+      }
+      var el = container.querySelector('#diff-result');
+      el.innerHTML = '<div style="font-size:.75rem;color:var(--text2);margin-bottom:8px">' + changes + ' خط تفاوت</div>' + html;
+      el.classList.add('show');
+    };
+  }
+});
+
+// ─── Number to Persian Words ───
+registerTool({
+  id: 'text-num2fa',
+  name: 'عدد به حروف فارسی',
+  icon: '🔢',
+  category: 'text-code',
+  keywords: ['عدد', 'حروف', 'فارسی', 'تومان', 'number', 'words', 'persian', 'ریال'],
+  desc: 'تبدیل عدد به حروف فارسی (مثلاً ۱۲۳۴ → یک هزار و دویست و سی و چهار)',
+  render: function(container) {
+    var ones = ['','یک','دو','سه','چهار','پنج','شش','هفت','هشت','نه'];
+    var teens = ['ده','یازده','دوازده','سیزده','چهارده','پانزده','شانزده','هفده','هجده','نوزده'];
+    var tens = ['','','بیست','سی','چهل','پنجاه','شصت','هفتاد','هشتاد','نود'];
+    var hundreds = ['','صد','دویست','سیصد','چهارصد','پانصد','ششصد','هفتصد','هشتصد','نهصد'];
+    var scales = ['','هزار','میلیون','میلیارد','تریلیون'];
+    function convert(n) {
+      if (n === 0) return 'صفر';
+      if (n < 0) return 'منفی ' + convert(-n);
+      var parts = [];
+      var scaleIdx = 0;
+      while (n > 0) {
+        var chunk = n % 1000;
+        if (chunk > 0) {
+          var chunkStr = '';
+          var h = Math.floor(chunk / 100);
+          var remainder = chunk % 100;
+          if (h > 0) chunkStr += hundreds[h];
+          if (remainder >= 10 && remainder < 20) {
+            if (chunkStr) chunkStr += ' و ';
+            chunkStr += teens[remainder - 10];
+          } else {
+            var t = Math.floor(remainder / 10);
+            var o = remainder % 10;
+            if (t > 0) { if (chunkStr) chunkStr += ' و '; chunkStr += tens[t]; }
+            if (o > 0) { if (chunkStr) chunkStr += ' و '; chunkStr += ones[o]; }
+          }
+          if (scales[scaleIdx]) chunkStr += ' ' + scales[scaleIdx];
+          parts.unshift(chunkStr);
+        }
+        n = Math.floor(n / 1000);
+        scaleIdx++;
+      }
+      return parts.join(' و ');
+    }
+    container.innerHTML = `
+      <div class="card">
+        <div class="input-group">
+          <label>عدد را وارد کنید:</label>
+          <input type="number" id="n2f-input" value="1234567" style="font-size:1.2rem;direction:ltr">
+        </div>
+        <div class="input-group">
+          <label>واحد:</label>
+          <select id="n2f-unit">
+            <option value="">بدون واحد</option>
+            <option value="تومان" selected>تومان</option>
+            <option value="ریال">ریال</option>
+            <option value="دلار">دلار</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="n2f-convert" style="width:100%">🔢 تبدیل</button>
+        <div id="n2f-result" class="result"></div>
+      </div>
+    `;
+    container.querySelector('#n2f-convert').onclick = function() {
+      var n = parseInt(container.querySelector('#n2f-input').value);
+      var unit = container.querySelector('#n2f-unit').value;
+      if (isNaN(n)) { showToast('لطفاً عدد وارد کنید'); return; }
+      var words = convert(n);
+      var el = container.querySelector('#n2f-result');
+      el.innerHTML = '<div style="font-size:1rem;line-height:2.2;font-weight:700;color:var(--accent)">' + words + ' ' + unit + '</div>' +
+        '<div style="font-size:.75rem;color:var(--text2);margin-top:8px">' + n.toLocaleString('fa-IR') + ' ' + unit + '</div>';
+      el.classList.add('show');
+    };
+  }
+});
 
   </script>
 
