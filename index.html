@@ -798,6 +798,76 @@ function el(tag, attrs = {}, ...children) {
   return elem;
 }
 
+// ═══════════════════════════════════════════
+// IMPROVED: New Utility Functions
+// ═══════════════════════════════════════════
+
+// ─── 1. Secure Encryption (Web Crypto API) ───
+async function _deriveKey(pw, salt) {
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'}, km, {name:'AES-GCM',length:256}, false, ['encrypt','decrypt']);
+}
+async function encryptData(data, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _deriveKey(pw, salt);
+  const enc = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, new TextEncoder().encode(data));
+  const buf = new Uint8Array(salt.length+iv.length+enc.byteLength);
+  buf.set(salt,0); buf.set(iv,16); buf.set(new Uint8Array(enc),28);
+  let binary='';for(let i=0;i<buf.length;i++)binary+=String.fromCharCode(buf[i]);return btoa(binary);
+}
+async function decryptData(b64, pw) {
+  const bin=atob(b64);const buf=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)buf[i]=bin.charCodeAt(i);
+  const key = await _deriveKey(pw, buf.slice(0,16));
+  return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:buf.slice(16,28)}, key, buf.slice(28)));
+}
+
+// ─── 2. Calculation History ───
+function addToCalcHistory(tool, expr, result) {
+  const H=JSON.parse(localStorage.getItem('tp_calc_history')||'[]');
+  H.unshift({tool,expr:String(expr),result:String(result),time:Date.now()});
+  if(H.length>100)H.length=100;
+  localStorage.setItem('tp_calc_history',JSON.stringify(H));
+}
+function getCalcHistory(tool,n=5) {
+  let H=JSON.parse(localStorage.getItem('tp_calc_history')||'[]');
+  if(tool)H=H.filter(h=>h.tool===tool);
+  return H.slice(0,n);
+}
+function renderCalcHistory(tool) {
+  const items=getCalcHistory(tool,5);
+  if(!items.length)return '';
+  return `<div style="margin-top:12px;padding:10px;background:var(--glass);border:1px solid var(--border);border-radius:10px">
+    <div style="font-size:.7rem;font-weight:700;color:var(--text2);margin-bottom:6px">📋 تاریخچه اخیر</div>
+    ${items.map(h=>{const a=Math.round((Date.now()-h.time)/6e4);const t=a<1?'الان':a<60?a+' دقیقه پیش':Math.round(a/60)+' ساعت پیش';
+    return `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--border);font-size:.72rem"><span style="color:var(--text2)">${h.expr} = <b style="color:var(--accent)">${h.result}</b></span><span style="color:var(--text2);font-size:.6rem;white-space:nowrap">${t}</span></div>`}).join('')}
+  </div>`;
+}
+
+// ─── 3. Fuzzy Search ───
+function fuzzyMatch(q, text, kws) {
+  q=q.toLowerCase(); text=text.toLowerCase();
+  if(text.includes(q))return{m:true,s:100+(text.startsWith(q)?50:0)};
+  if(kws&&kws.some(k=>k.toLowerCase().includes(q)))return{m:true,s:80};
+  let qi=0,score=0,consec=0;
+  for(let ti=0;ti<text.length&&qi<q.length;ti++){
+    if(text[ti]===q[qi]){qi++;consec++;score+=consec*2;}else consec=0;
+  }
+  return qi===q.length?{m:true,s:score}:{m:false,s:0};
+}
+
+// ─── 4. Share via URL ───
+function generateShareURL(id,p){return location.href.split('#')[0]+'#/tool/'+id+'?'+Object.entries(p).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&');}
+function parseShareURL(){const h=location.hash,m=h.match(/^#\/tool\/([^?]+)\??(.*)/);if(!m)return null;const p={};if(m[2])m[2].split('&').forEach(x=>{const[k,v]=x.split('=');p[k]=decodeURIComponent(v||'')});return{toolId:m[1],params:p};}
+
+// ─── 5. Retry Fetch ───
+async function retryFetch(url,opts={},retries=3){
+  for(let i=0;i<retries;i++){
+    try{const r=await fetch(url,{...opts,signal:AbortSignal.timeout(1e4)});if(r.ok)return r;if(i===retries-1)throw new Error('HTTP '+r.status);}
+    catch(e){if(i===retries-1)throw e;await new Promise(r=>setTimeout(r,Math.pow(2,i)*1e3));}
+  }
+}
+
+
 
 // ═══ toast.js ═══
 // ═══════════════════════════════════════════
@@ -1167,6 +1237,7 @@ function renderScientific(container) {
   let resetNext = false;
   let memory = 0;
   let hasResult = false;
+  let justAddedToExpr = false;
 
   container.innerHTML = `
     <div style="max-width:380px;margin:0 auto">
@@ -1231,31 +1302,40 @@ function renderScientific(container) {
       if (resetNext || current === '0') { current = action; resetNext = false; }
       else current += action;
       hasResult = false;
+      justAddedToExpr = false;
     } else if (action === '.') {
       if (resetNext) { current = '0.'; resetNext = false; }
       else if (!current.includes('.')) current += '.';
+      justAddedToExpr = false;
     } else if (['+', '-', '×', '÷'].includes(action)) {
       expression += current + ' ' + action + ' ';
       resetNext = true;
       hasResult = false;
+      justAddedToExpr = true;
     } else if (action === '=') {
       try {
-        const expr = (expression + current).replace(/×/g, '*').replace(/÷/g, '/');
-        current = String(eval(expression + current));
+        const fullExpr = justAddedToExpr ? expression.trimEnd() : expression + current;
+        const expr = fullExpr.replace(/×/g, '*').replace(/÷/g, '/').replace(/\^/g, '**');
+        current = String(eval(expr));
         if (current === 'Infinity' || current === '-Infinity' || current === 'NaN') current = 'خطا';
+        else addToCalcHistory('ماشین حساب علمی',(expression||'').trim()+' '+current,current);
         expression = '';
         hasResult = true;
+        justAddedToExpr = false;
       } catch { current = 'خطا'; expression = ''; hasResult = true; }
       resetNext = true;
     } else if (action === 'clear') {
       current = '0'; expression = ''; resetNext = false; hasResult = false;
+      justAddedToExpr = false;
     } else if (action === 'neg') {
       if (current !== '0' && current !== 'خطا') {
         current = current.startsWith('-') ? current.slice(1) : '-' + current;
       }
+      justAddedToExpr = false;
     } else if (action === 'percent') {
       try { current = String(parseFloat(current) / 100); } catch { current = 'خطا'; }
       resetNext = true;
+      justAddedToExpr = false;
     } else if (['sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'sq'].includes(action)) {
       const val = parseFloat(current);
       let result;
@@ -1275,18 +1355,20 @@ function renderScientific(container) {
         current = String(result);
       }
       resetNext = true;
-    } else if (action === 'pi') { current = String(Math.PI); resetNext = true; }
-    else if (action === 'e') { current = String(Math.E); resetNext = true; }
-    else if (action === 'pow') { expression += current + ' ^ '; resetNext = true; }
-    else if (action === '(') { expression += '('; resetNext = true; }
-    else if (action === ')') { expression += current + ')'; resetNext = true; }
+      justAddedToExpr = true;
+    } else if (action === 'pi') { current = String(Math.PI); resetNext = true; justAddedToExpr = false; }
+    else if (action === 'e') { current = String(Math.E); resetNext = true; justAddedToExpr = false; }
+    else if (action === 'pow') { expression += current + ' ^ '; resetNext = true; justAddedToExpr = true; }
+    else if (action === '(') { expression += '('; resetNext = true; justAddedToExpr = false; }
+    else if (action === ')') { expression += current + ')'; resetNext = true; justAddedToExpr = true; }
     else if (action === 'backspace') {
       if (current.length > 1) current = current.slice(0, -1);
       else current = '0';
+      justAddedToExpr = false;
     }
     // Memory
     else if (action === 'mc') { memory = 0; }
-    else if (action === 'mr') { current = String(memory); resetNext = true; }
+    else if (action === 'mr') { current = String(memory); resetNext = true; justAddedToExpr = false; }
     else if (action === 'mplus') { memory += parseFloat(current) || 0; showToast(`M+ → ${faNum(memory)}`); }
     else if (action === 'mminus') { memory -= parseFloat(current) || 0; showToast(`M- → ${faNum(memory)}`); }
 
@@ -1296,7 +1378,8 @@ function renderScientific(container) {
   container.querySelectorAll('.calc-btn').forEach(btn => {
     btn.addEventListener('click', () => handleAction(btn.dataset.action));
   });
-
+  const _hDiv=document.createElement('div');container.querySelector('div').appendChild(_hDiv);
+  _hDiv.innerHTML=renderCalcHistory('ماشین حساب علمی');
   updateDisplay();
 }
 
@@ -1466,6 +1549,7 @@ function renderBMI(container) {
       <div class="row"><span class="label">محدوده وزن سالم</span><span class="value">${faNum(hm * hm * 18.5, 1)} – ${faNum(hm * hm * 25, 1)} kg</span></div>
     `;
     resultBox.style.display = 'block';
+    addToCalcHistory('BMI','وزن:'+w+' قد:'+h,faNum(bmi,1));
 
     container.querySelector('#bmiGauge').style.display = 'block';
     const marker = container.querySelector('#bmiMarker');
@@ -1646,6 +1730,7 @@ function renderLoan(container) {
       </div>
     </div>
     <button class="btn btn-primary" id="loanCalc" style="width:100%;margin-top:8px">محاسبه قسط</button>
+    <button class="btn btn-ghost" id="loanShare" style="width:100%;margin-top:4px;font-size:.75rem">?? اشتراک‌گذاری</button>
     <div id="loanSummary" style="display:none;margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="loan-box"><div class="num" id="loanMonthly">—</div><div class="lbl">قسط ماهانه</div></div>
       <div class="loan-box"><div class="num" id="loanTotal">—</div><div class="lbl">جمع پرداختی</div></div>
@@ -1680,6 +1765,7 @@ function renderLoan(container) {
     const intPct = (totalInterest / totalPayment) * 100;
 
     container.querySelector('#loanSummary').style.display = 'grid';
+    addToCalcHistory('وام',faNum(P)+' تومان @ '+faNum(annualRate)+'٪',faNum(Math.round(monthly))+' ت/ماه');
     container.querySelector('#loanMonthly').textContent = faNum(Math.round(monthly)) + ' ت';
     container.querySelector('#loanTotal').textContent = faNum(Math.round(totalPayment)) + ' ت';
     container.querySelector('#loanInterest').textContent = faNum(Math.round(totalInterest)) + ' ت';
@@ -1695,6 +1781,15 @@ function renderLoan(container) {
       <div class="row"><span class="label">سود کل</span><span class="value">${faNum(Math.round(totalInterest))} تومان</span></div>
     `;
     resultBox.style.display = 'block';
+  
+    container.querySelector('#loanShare').onclick = () => {
+      const P = parseFloat(container.querySelector('#loanAmount').value) || 0;
+      const R = parseFloat(container.querySelector('#loanRate').value) || 0;
+      const T = parseInt(container.querySelector('#loanTerm').value) || 0;
+      const url = generateShareURL('calc-loan', { amount: P, rate: R, term: T });
+      navigator.clipboard.writeText(url);
+      showToast('لینک کپی شد ??');
+    };
   });
 }
 
@@ -2513,16 +2608,20 @@ function renderCurrencyConverter() {
     resultEl.textContent = 'در حال دریافت نرخ...';
 
     try {
-      const resp = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
+      const resp = await retryFetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
       if (!resp.ok) throw new Error('API error');
       const data = await resp.json();
       currentRate = data.rates[to];
       if (!currentRate) throw new Error('نرخ یافت نشد');
+      localStorage.setItem('tp_cur_'+from+'_'+to, JSON.stringify({rate:currentRate,time:Date.now()}));
       container.querySelector('#conv-cur-rate').value = currentRate.toFixed(6);
       resultEl.textContent = `نرخ ${from} → ${to}: ${formatNumber(currentRate, 6)}`;
       showToast('نرخ با موفقیت دریافت شد');
     } catch (err) {
-      resultEl.textContent = 'خطا در دریافت نرخ. لطفاً نرخ را دستی وارد کنید.';
+      const _cached=localStorage.getItem('tp_cur_'+from+'_'+to);
+      if(_cached){const _c=JSON.parse(_cached);currentRate=_c.rate;container.querySelector('#conv-cur-rate').value=currentRate.toFixed(6);
+      resultEl.textContent='⚠️ آفلاین: نرخ ذخیره‌شده '+formatNumber(currentRate,6)+' ('+Math.round((Date.now()-_c.time)/6e4)+' دقیقه پیش)';}
+      else{resultEl.textContent='خطا در دریافت نرخ. لطفاں نرخ را دستی وارد کنید.';}
       showToast('خطا در دریافت نرخ از API');
     }
   }
@@ -2607,7 +2706,7 @@ function renderCryptoConverter() {
     infoEl.textContent = 'در حال دریافت قیمت‌ها...';
     const ids = CRYPTOS.map(c => c.id).join(',');
     try {
-      const resp = await fetch(
+      const resp = await retryFetch(
         `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`
       );
       if (!resp.ok) throw new Error('API error');
@@ -2619,7 +2718,10 @@ function renderCryptoConverter() {
       showToast('قیمت‌ها دریافت شد');
       convert();
     } catch {
-      infoEl.textContent = 'خطا در دریافت قیمت. لطفاً دوباره تلاش کنید.';
+      const _cc=localStorage.getItem('tp_crypto_cache');
+      if(_cc){const _c=JSON.parse(_cc);Object.assign(prices,_c.prices);
+      infoEl.textContent='⚠️ آفلاین: قیمتهای ذخیره‌شده ('+Math.round((Date.now()-_c.time)/6e4)+' دقیقه پیش)';convert();}
+      else{infoEl.textContent='خطا در دریافت قیمت. لطفاں دوباره تلاش کنید.';}
       showToast('خطا در دریافت قیمت از CoinGecko');
     }
   }
@@ -2735,6 +2837,7 @@ function renderNumberBaseConverter() {
   const container = document.createElement('div');
 
   container.innerHTML = `
+    <div dir="ltr" style="text-align:left">
     <div class="input-group">
       <input type="text" id="conv-base-input" placeholder="عدد را وارد کنید..." />
     </div>
@@ -3316,6 +3419,7 @@ function renderSnake(c) {
     // Self collision
     if (snake.some(function(s) { return s.x === head.x && s.y === head.y; })) {
       gameActive = false; clearInterval(interval);
+      const _ss=JSON.parse(localStorage.getItem('tp_snake_scores')||'[]');_ss.push({score,time:Date.now()});if(_ss.length>10)_ss.splice(0,_ss.length-10);localStorage.setItem('tp_snake_scores',JSON.stringify(_ss));
       if (score > highScore) { highScore = score; lsSet('snake_high', highScore); c.querySelector('#snHigh').textContent = highScore; showToast('رکورد جدید! ' + score); }
       else { showToast('بازی تمام شد! امتیاز: ' + score); }
       return;
@@ -6887,8 +6991,20 @@ const passwordManagerTool = {
     const searchEl = $('pw-search');
     const listEl = $('pw-list');
 
+    let masterPass=sessionStorage.getItem('tp_master_pass');
+    async function ensureMasterPass(){
+      if(masterPass)return true;
+      const pw=prompt('?? رزم اصلی خود را وارد کنید:');
+      if(!pw)return false;
+      const v=localStorage.getItem('tp_master_verify');
+      if(v){try{const d=await decryptData(v,pw);if(d!=='verified'){showToast('رزم اصلی اشتباه','error');return false;}}catch{showToast('رزم اصلی اشتباه','error');return false;}}
+      else{localStorage.setItem('tp_master_verify',await encryptData('verified',pw));}
+      masterPass=pw;sessionStorage.setItem('tp_master_pass',pw);return true;
+    }
     async function loadEntries() {
+      if(!await ensureMasterPass()){listEl.innerHTML='<div style="text-align:center;color:#e74c3c;padding:20px">?? رزم اصلی وارد نشده</div>';return;}
       entries = await dbGetAll('passwords');
+      for(const e of entries){if(e.encrypted){try{e.password=await decryptData(e.encrypted,masterPass);}catch{e.password='?? خطا';}}}
       entries.sort((a, b) => (a.site || '').localeCompare(b.site || ''));
       renderEntries(entries);
     }
@@ -6956,7 +7072,8 @@ const passwordManagerTool = {
       const username = userEl.value.trim();
       const password = passEl.value;
       if (!site || !password) return showToast('نام سایت و رمز الزامی است', 'warn');
-      await dbPut('passwords', { id: 'pw_' + Date.now(), site, username, password });
+      const _enc=await encryptData(password,masterPass);
+      await dbPut('passwords', { id: 'pw_' + Date.now(), site, username, password:'', encrypted:_enc });
       siteEl.value = '';
       userEl.value = '';
       passEl.value = '';
@@ -6989,7 +7106,7 @@ const jsonFormatterTool = {
   render(container) {
     container.innerHTML = `
       <div class="card" style="padding:16px;max-width:720px;margin:0 auto">
-        <h3 style="margin-bottom:12px">📋 JSON Formatter</h3>
+        <div dir="ltr" style="text-align:left"><h3 style="margin-bottom:12px">📋 JSON Formatter</h3>
         <div class="input-group" style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
           <label style="font-size:13px">Indent:</label>
           <select id="jf-indent" style="padding:6px;border:1px solid var(--border,#ccc);border-radius:4px;font-size:13px">
@@ -7162,7 +7279,7 @@ const imageToolsTool = {
         if (!blob) return;
         compBlob = blob;
         const infoEl = compressEl.querySelector('#img-comp-info');
-        infoEl.innerHTML += `<div>✅ حجم فشرده: ${(blob.size / 1024).toFixed(1)} KB (${Math.round((1 - blob.size / (blob.size + 1000)) * 100)}% کاهش)</div>`;
+        const origSize = parseFloat(infoEl.textContent.match(/حجم اصلی: ([\d.]+)/)?.[1] || 0) * 1024; const pctRed = origSize > 0 ? Math.round((1 - blob.size / origSize) * 100) : 0; infoEl.innerHTML += `<div>✅ حجم فشرده: ${(blob.size / 1024).toFixed(1)} KB (${pctRed}% کاهش)</div>`;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = 'compressed.jpg';
@@ -7604,7 +7721,7 @@ const cssTool = {
   render(container) {
     container.innerHTML = `
       <div class="card" style="padding:16px;max-width:720px;margin:0 auto">
-        <h3 style="margin-bottom:12px">🎨 CSS Minifier / Formatter</h3>
+        <div dir="ltr" style="text-align:left"><h3 style="margin-bottom:12px">🎨 CSS Minifier / Formatter</h3>
         <div class="input-group" style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
           <button class="btn" id="css-minify" style="padding:6px 14px;border:none;border-radius:6px;background:#f59e0b;color:#fff;cursor:pointer">📦 Minify</button>
           <button class="btn" id="css-format" style="padding:6px 14px;border:none;border-radius:6px;background:#4f46e5;color:#fff;cursor:pointer">✨ Format</button>
@@ -7815,7 +7932,7 @@ const sqlTool = {
   render(container) {
     container.innerHTML = `
       <div class="card" style="padding:16px;max-width:720px;margin:0 auto">
-        <h3 style="margin-bottom:12px">🗃️ SQL Formatter</h3>
+        <div dir="ltr" style="text-align:left"><h3 style="margin-bottom:12px">🗃️ SQL Formatter</h3>
         <div class="input-group" style="display:flex;gap:8px;margin-bottom:10px;align-items:center">
           <button class="btn" id="sql-format" style="padding:6px 14px;border:none;border-radius:6px;background:#4f46e5;color:#fff;cursor:pointer">✨ Format</button>
           <button class="btn" id="sql-upper" style="padding:6px 14px;border:none;border-radius:6px;background:#10b981;color:#fff;cursor:pointer">Aa → UPPER</button>
@@ -12506,16 +12623,17 @@ const bottomNav = document.getElementById('bottomNav');
 let favorites = [];
 
 // ─── Build Sidebar Navigation ───
-function buildSidebar(filter = '') {
+function buildSidebar(filter = '', filteredIds = null) {
   sidebarNav.innerHTML = '';
   const q = filter.toLowerCase().trim();
 
   CATEGORIES.forEach(cat => {
     const tools = getToolsByCategory(cat.id);
-    const filtered = q ? tools.filter(t =>
-      t.name.toLowerCase().includes(q) ||
-      (t.keywords && t.keywords.some(k => k.includes(q)))
-    ) : tools;
+    const filtered = filteredIds ? tools.filter(t => filteredIds.includes(t.id)) : 
+      q ? tools.filter(t =>
+        t.name.toLowerCase().includes(q) ||
+        (t.keywords && t.keywords.some(k => k.includes(q)))
+      ) : tools;
 
     if (filtered.length === 0) return;
 
@@ -12677,6 +12795,20 @@ async function handleToggleFavorite(toolId) {
 }
 
 // ─── Show Tool Page ───
+// Auto-open shared tool
+  const _shared = parseShareURL();
+  if (_shared) {
+    setTimeout(() => {
+      showTool(_shared.toolId);
+      setTimeout(() => {
+        Object.entries(_shared.params).forEach(([k, v]) => {
+          const el = document.querySelector('[id*="'+k+'"]');
+          if (el && el.tagName !== 'BUTTON') el.value = v;
+        });
+      }, 300);
+    }, 500);
+  }
+
 async function showTool(toolId) {
   const tool = getTool(toolId);
   if (!tool) {
@@ -12755,9 +12887,17 @@ document.addEventListener('click', (e) => {
 themeToggle.addEventListener('click', toggleTheme);
 
 // ─── Sidebar Search ───
-sidebarSearch.addEventListener('input', debounce((e) => {
-  buildSidebar(e.target.value);
-}, 200));
+sidebarSearch.addEventListener('input', (e) => {
+    const query = sidebarSearch.value.trim().toLowerCase();
+    if(!query){buildSidebar('');return;}
+    const scored=[];
+    getAllTools().forEach(t => {
+      const r = fuzzyMatch(query, t.name, t.keywords||[]);
+      if(r.m)scored.push({id:t.id,score:r.s});
+    });
+    scored.sort((a,b)=>b.score-a.score);
+    buildSidebar('', scored.map(s=>s.id));
+  });
 
 // ─── Bottom Nav ───
 bottomNav.addEventListener('click', function(e) {
